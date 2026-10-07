@@ -1,0 +1,17 @@
+{% from 'components/icons.html' import icon %}
+{% if transactions %}
+<div class="table-responsive"><table class="table app-table align-middle"><thead><tr><th>Операция</th><th>Фонд / движение</th><th>Дата и время · UTC</th><th>Оплата</th><th>Автор</th><th class="text-end">Сумма</th>{% if current_user.role != 'Investor' and not dashboard_table %}<th class="text-end">Действия</th>{% endif %}</tr></thead><tbody>
+{% for tx in transactions %}<tr>
+  <td><div class="transaction-cell"><span class="transaction-icon {{ tx.type }}">{{ icon('arrow-down' if tx.type == 'income' else 'arrow-up' if tx.type == 'expense' else 'transactions', 17) }}</span><div><strong>{{ tx.name }}</strong><span>{{ type_labels[tx.type] }}{% if tx.description %} · {{ tx.description }}{% endif %}</span></div></div></td>
+  <td><span class="fund-cell">{% if tx.type == 'inter-transaction' %}{{ tx.from_fund_name or 'Другой фонд' }} <span class="text-secondary">→</span> {{ tx.to_fund_name or 'Другой фонд' }}{% else %}{{ (tx.to_fund_name if tx.type == 'income' else tx.from_fund_name) or '—' }}{% endif %}</span></td>
+  <td class="date-cell">{{ tx.datetime[:10] }}<span>{{ tx.datetime[11:16] }}</span></td>
+  <td><span class="payment-tag">{{ tx.pay_type or '—' }}</span></td>
+  <td class="text-secondary small">{{ tx.fullname or tx.username }}</td>
+  <td class="text-end money-cell {{ 'positive' if tx.type == 'income' else 'negative' if tx.type == 'expense' }}">{{ '+' if tx.type == 'income' else '−' if tx.type == 'expense' else '↔ ' }}{{ tx.money|money }}</td>
+  {% if current_user.role != 'Investor' and not dashboard_table %}<td class="text-end"><div class="row-actions">
+    {% if can_modify(current_user, tx) %}<a class="text-action" href="{{ url_for('web.transaction_edit', transaction_id=tx.id) }}" aria-label="Изменить операцию {{ tx.name }}">Изменить</a><form method="post" action="{{ url_for('web.transaction_delete', transaction_id=tx.id) }}" data-confirm="Удалить ошибочную операцию? Балансы фондов будут пересчитаны."><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="text-action danger-action" type="submit">Удалить</button></form>
+    {% elif current_user.role == 'Cashier' and last_id == tx.id %}<form method="post" action="{{ url_for('web.transaction_cancel', transaction_id=tx.id) }}" data-confirm="Отменить вашу последнюю ошибочную операцию?"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="text-action danger-action" type="submit">Отменить</button></form>{% else %}<span class="text-secondary">—</span>{% endif %}
+  </div></td>{% endif %}
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}<div class="empty-state"><div class="empty-icon">{{ icon('transactions', 28) }}</div><h3>Операций пока нет</h3><p>{{ 'Измените фильтры или выберите другой период.' if filters and (filters.get('date_from') or filters.get('date_to') or filters.get('type') or filters.get('pay_type')) else 'Проведённые операции появятся здесь.' }}</p></div>{% endif %}

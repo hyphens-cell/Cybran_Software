@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Вход в систему{% endblock %}
+{% block content %}
+<div class="login-layout">
+  <section class="login-art" aria-label="Cybran Software"><a class="brand" href="{{ url_for('auth.login') }}"><img src="{{ url_for('static', filename='img/icon.png') }}" alt=""><span>CYBRAN<span class="brand-sub">SOFTWARE</span></span></a><div class="login-statement"><div class="eyebrow">ФИНАНСОВАЯ ЯСНОСТЬ</div><h1>Каждая операция.<br>Каждый фонд.<br><span>Всё на своём месте.</span></h1><p>Единое пространство для прозрачного учёта<br class="d-none d-xl-block"> и управления финансами компании.</p><div class="login-line"></div></div><div class="login-art-footer"><span class="status-dot"></span> Система финансового учёта</div><div class="art-orbit orbit-one"></div><div class="art-orbit orbit-two"></div></section>
+  <section class="login-panel"><div class="login-form-wrap"><div class="eyebrow text-secondary mb-3">ДОБРО ПОЖАЛОВАТЬ</div><h2>Вход в систему</h2><p class="text-secondary mb-4">Войдите в своё рабочее пространство.</p>
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" class="needs-validation"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="mb-4"><label class="form-label" for="username">Имя пользователя</label><input class="form-control form-control-lg" id="username" name="username" value="{{ request.form.get('username', '') }}" autocomplete="username" required autofocus maxlength="50" placeholder="Ваш логин"></div>
+    <div class="mb-4"><label class="form-label" for="password">Пароль</label><input class="form-control form-control-lg" type="password" id="password" name="password" autocomplete="current-password" required placeholder="Введите пароль"></div>
+    <button class="btn btn-primary btn-lg w-100" type="submit">Войти в систему {{ icon('chevron', 18) }}</button>
+  </form><p class="login-help">Для получения доступа обратитесь<br>к администратору вашей компании.</p><div class="login-security">{{ icon('shield', 16) }} Доступ в соответствии с вашей ролью</div></div></section>
+</div>
+{% endblock %}

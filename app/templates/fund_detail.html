@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}{{ fund.name }}{% endblock %}
+{% block breadcrumb %}Детали фонда{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('web.funds') }}">← Все доступные фонды</a><div class="page-heading"><div><div class="eyebrow">ФОНД № {{ fund.id }}</div><h1>{{ fund.name }}</h1><p>{{ fund.description }}</p></div><div class="heading-actions">{% if current_user.role == 'Super Admin' %}<a class="btn btn-outline-secondary" href="{{ url_for('web.fund_form', fund_id=fund.id) }}">{{ icon('edit', 16) }} Настроить</a>{% endif %}{% if current_user.role != 'Investor' and fund.is_active %}<a class="btn btn-primary" href="{{ url_for('web.transaction_new', fund_id=fund.id) }}">{{ icon('plus', 17) }} Новая операция</a>{% endif %}</div></div>
+<div class="fund-detail-summary"><div><span>Текущий баланс</span><strong>{{ fund.balance|money }}</strong></div><div><span>Всего операций</span><strong>{{ fund.transaction_count }}</strong></div><div><span>Статус фонда</span><span class="badge-soft">{{ 'Активен' if fund.is_active else 'Архив' }}</span></div><div><span>Сводная отчётность</span><span>{{ 'Участвует' if fund.type == 'for_stats' else 'Не участвует' }}</span></div></div>
+{% if not fund.is_active %}<div class="alert alert-secondary">Фонд архивирован. История операций сохранена.</div>{% endif %}
+<section class="panel"><div class="panel-heading"><h2>История фонда</h2><span class="count-badge">{{ transactions|length }}</span></div>{% include 'components/filters.html' %}{% include 'components/transactions_table.html' %}</section>
+{% endblock %}

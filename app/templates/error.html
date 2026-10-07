@@ -1,0 +1,3 @@
+{% extends 'base.html' %}
+{% block title %}Ошибка {{ code }}{% endblock %}
+{% block content %}<div class="error-state"><div class="error-number">{{ code }}</div><h1>{{ 'Доступ ограничен' if code == 403 else 'Страница не найдена' if code == 404 else 'Не удалось выполнить действие' }}</h1><p>{{ message }}</p><a class="btn btn-primary" href="{{ url_for('web.index') if current_user else url_for('auth.login') }}">Вернуться на главную</a></div>{% endblock %}

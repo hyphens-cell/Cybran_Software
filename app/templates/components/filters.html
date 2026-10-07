@@ -1,0 +1,8 @@
+<form class="filter-bar" method="get">
+  <div><label for="date_from" class="form-label">Дата с · UTC</label><input class="form-control" id="date_from" type="date" name="date_from" value="{{ filters.get('date_from', '') }}"></div>
+  <div><label for="date_to" class="form-label">Дата по</label><input class="form-control" id="date_to" type="date" name="date_to" value="{{ filters.get('date_to', '') }}"></div>
+  {% if not fund %}<div><label for="filter_fund" class="form-label">Фонд</label><select id="filter_fund" name="fund_id" class="form-select"><option value="">Все доступные</option>{% for item in funds %}<option value="{{ item.id }}" {{ 'selected' if filters.get('fund_id', '')|string == item.id|string }}>{{ item.name }}</option>{% endfor %}</select></div>{% endif %}
+  <div><label for="filter_type" class="form-label">Тип операции</label><select id="filter_type" name="type" class="form-select"><option value="">Все операции</option>{% for key, label in type_labels.items() %}<option value="{{ key }}" {{ 'selected' if filters.get('type') == key }}>{{ label }}</option>{% endfor %}</select></div>
+  <div><label for="filter_pay" class="form-label">Способ оплаты</label><input id="filter_pay" name="pay_type" class="form-control" list="payment-options" value="{{ filters.get('pay_type', '') }}" placeholder="Все способы" maxlength="50"><datalist id="payment-options"><option value="Наличные"><option value="Kaspi"><option value="Карта"></datalist></div>
+  <div class="filter-actions"><button class="btn btn-dark" type="submit">Применить</button><a class="reset-link" href="{{ request.path }}">Сбросить</a></div>
+</form>
