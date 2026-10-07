@@ -1,5 +1,4 @@
 """Explicit sample data for a separate local demonstration database."""
-import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -14,7 +13,12 @@ def seed_demo():
     db = get_db()
     if db.execute('SELECT count(*) FROM Users').fetchone()[0]:
         raise click.ClickException('Demo seed requires an empty database; existing data has not been changed.')
-    passwords = {name:secrets.token_urlsafe(15) for name in ('superadmin','admin','cashier','investor')}
+    passwords = {
+        'superadmin': 'superadmin123',
+        'admin': 'admin123',
+        'cashier': 'cashier123',
+        'investor': 'investor123',
+    }
     with atomic():
         db.execute('INSERT INTO Users(username,fullname,password_hash,role) VALUES(?,?,?,?)',
                    ('superadmin','Системный администратор',svc.password_hash(passwords['superadmin']),'Super Admin'))
@@ -44,6 +48,6 @@ def seed_demo():
         svc.create_transfer(users['admin'],dict(name='Финансирование разработки',description='Перераспределение средств',money=1800000,
             from_fund_id=funds[0]['id'],to_fund_id=funds[1]['id']))
     path = Path(current_app.instance_path)/'demo-access.txt'
-    path.write_text('ДЕМО Cybran Software — только локальные тестовые данные\n\n'+
+    path.write_text('ДЕМО Cybran Software — только локальные тестовые данные. Простые пароли нельзя использовать в рабочей базе.\n\n'+
                     '\n'.join(f'{name}: {password}' for name,password in passwords.items())+'\n',encoding='utf-8')
     click.echo(f'Demo created. Local credentials: {path}')
