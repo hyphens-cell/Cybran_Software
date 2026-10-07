@@ -1,6 +1,7 @@
 """SQLite persistence. All monetary mutations use an explicit write transaction."""
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import current_app, g
@@ -34,7 +35,26 @@ CREATE TABLE IF NOT EXISTS ApiTokens (
  token TEXT NOT NULL UNIQUE CHECK(length(token)=64),
  active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
  datetime TEXT NOT NULL,
+ expires_at TEXT NOT NULL,
  user_id INTEGER NOT NULL REFERENCES Users(id)
+);
+CREATE TABLE IF NOT EXISTS WebSessions (
+ id INTEGER PRIMARY KEY,
+ session_hash TEXT NOT NULL UNIQUE CHECK(length(session_hash)=64),
+ user_id INTEGER NOT NULL REFERENCES Users(id),
+ auth_version INTEGER NOT NULL,
+ created_at TEXT NOT NULL,
+ last_seen_at TEXT NOT NULL,
+ expires_at TEXT NOT NULL,
+ ip_address TEXT NOT NULL DEFAULT '' CHECK(length(ip_address)<=45),
+ user_agent TEXT NOT NULL DEFAULT '' CHECK(length(user_agent)<=300),
+ revoked_at TEXT,
+ revoked_by INTEGER REFERENCES Users(id)
+);
+CREATE TABLE IF NOT EXISTS LoginAttempts (
+ key_hash TEXT PRIMARY KEY CHECK(length(key_hash)=64),
+ attempts INTEGER NOT NULL CHECK(attempts>0),
+ window_started_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS Transactions (
  id INTEGER PRIMARY KEY,
@@ -60,6 +80,8 @@ CREATE INDEX IF NOT EXISTS ix_transactions_to ON Transactions(to_fund_id,datetim
 CREATE INDEX IF NOT EXISTS ix_transactions_author ON Transactions(user_id,id);
 CREATE INDEX IF NOT EXISTS ix_transactions_date ON Transactions(datetime);
 CREATE INDEX IF NOT EXISTS ix_rights_fund ON Rights(fund_id);
+CREATE INDEX IF NOT EXISTS ix_web_sessions_active ON WebSessions(revoked_at,expires_at);
+CREATE INDEX IF NOT EXISTS ix_web_sessions_user ON WebSessions(user_id,revoked_at,expires_at);
 """
 
 
@@ -74,7 +96,15 @@ def get_db():
 
 def init_db():
     Path(current_app.config['DATABASE']).parent.mkdir(parents=True, exist_ok=True)
-    get_db().executescript(SCHEMA)
+    connection = get_db()
+    connection.executescript(SCHEMA)
+    token_columns = {row['name'] for row in connection.execute('PRAGMA table_info(ApiTokens)')}
+    if 'expires_at' not in token_columns:
+        connection.execute('ALTER TABLE ApiTokens ADD COLUMN expires_at TEXT')
+        expires = datetime.now(timezone.utc).replace(tzinfo=None) + current_app.config.get(
+            'API_TOKEN_LIFETIME', timedelta(days=30))
+        connection.execute('UPDATE ApiTokens SET expires_at=? WHERE expires_at IS NULL',
+                           (expires.isoformat(timespec='seconds'),))
 
 
 def close_db(_error=None):

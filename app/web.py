@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 
-from flask import Blueprint, abort, flash, g, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, flash, g, redirect, render_template, request, send_file, session, url_for
 
 from . import services as svc
 from .auth import login_required, roles_required
@@ -183,9 +183,7 @@ def transfer_new():
 @bp.route("/transactions/<int:transaction_id>/edit", methods=["GET", "POST"])
 @roles_required("Super Admin", "Admin")
 def transaction_edit(transaction_id):
-    transaction = svc.record("Transactions", transaction_id)
-    if not svc.can_modify(g.user, transaction):
-        abort(403)
+    transaction = svc.transaction_for_modify(g.user, transaction_id)
     status = 200
     transfer = transaction["type"] == "inter-transaction"
     values = dict(transaction)
@@ -289,7 +287,10 @@ def user_form(user_id=None):
 @bp.post("/users/<int:user_id>/block")
 @roles_required("Super Admin")
 def user_block(user_id):
-    svc.block_user(g.user, user_id, request.form.get("is_active") == "1")
+    value = request.form.get("is_active")
+    if value not in ("0", "1"):
+        raise svc.DomainError("Статус пользователя должен быть явно указан: 0 или 1.")
+    svc.block_user(g.user, user_id, value == "1")
     flash("Статус пользователя изменён.", "success")
     return redirect(url_for("web.users"))
 
@@ -339,3 +340,33 @@ def token_revoke(token_id):
     svc.revoke_token(g.user, token_id)
     flash("API-токен отозван.", "success")
     return redirect(url_for("web.tokens"))
+
+
+@bp.get("/sessions")
+@roles_required("Super Admin")
+def web_sessions():
+    return render_template("sessions.html", sessions=svc.list_web_sessions(g.user),
+                           current_session_id=g.web_session_id)
+
+
+@bp.post("/sessions/<int:session_id>/revoke")
+@roles_required("Super Admin")
+def web_session_revoke(session_id):
+    svc.revoke_web_session(g.user, session_id)
+    if session_id == g.web_session_id:
+        session.clear()
+        return redirect(url_for("auth.login", ended="1"))
+    flash("Сессия пользователя завершена.", "success")
+    return redirect(url_for("web.web_sessions"))
+
+
+@bp.post("/sessions/revoke-all")
+@roles_required("Super Admin")
+def web_sessions_revoke_all():
+    keep_current = request.form.get("scope") == "others"
+    count = svc.revoke_all_web_sessions(g.user, g.web_session_id if keep_current else None)
+    if not keep_current:
+        session.clear()
+        return redirect(url_for("auth.login", ended="all"))
+    flash(f"Завершено сессий: {count}.", "success")
+    return redirect(url_for("web.web_sessions"))

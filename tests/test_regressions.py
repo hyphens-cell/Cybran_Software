@@ -18,6 +18,13 @@ def test_non_ascii_csrf_is_rejected_without_server_error(client, login):
     assert client.get('/funds').status_code == 200
 
 
+def test_security_headers_include_csp_and_permissions_policy(client):
+    response = client.get('/login')
+    assert response.headers['Content-Security-Policy'].startswith("default-src 'self'")
+    assert "object-src 'none'" in response.headers['Content-Security-Policy']
+    assert response.headers['Permissions-Policy'] == 'camera=(), geolocation=(), microphone=()'
+
+
 @pytest.mark.parametrize('value',['0001-01-01T00:00:00+01:00','9999-12-31T23:59:59-01:00'])
 def test_timezone_overflow_is_validation_error(api, rows, value):
     response = api('POST','/api/transactions/add',data={

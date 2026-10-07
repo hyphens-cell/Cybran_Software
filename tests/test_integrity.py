@@ -98,8 +98,8 @@ def test_transfer_edit_checks_old_and_new_funds(api, rows):
     assert api("PUT", f"/api/transactions/{result['id']}/edit", data={"to_fund_id": 4}).status_code == 403
     assert rows("SELECT * FROM Transactions ORDER BY id") == original
     assert api("DELETE", "/api/rights/2/2", "root").status_code == 204
-    assert api("PUT", f"/api/transactions/{result['id']}/edit", data={"to_fund_id": 1}).status_code == 403
-    assert api("DELETE", f"/api/transactions/{result['linked_transaction_id']}/delete").status_code == 403
+    assert api("PUT", f"/api/transactions/{result['id']}/edit", data={"to_fund_id": 1}).status_code == 404
+    assert api("DELETE", f"/api/transactions/{result['linked_transaction_id']}/delete").status_code == 404
     assert rows("SELECT * FROM Transactions ORDER BY id") == original
 
 
@@ -120,6 +120,21 @@ def test_archiving_preserves_history_balances_and_global_stats(api, app, users, 
     assert api("POST", "/api/transactions/add_transfer", data=transfer_payload()).status_code == 409
     with app.app_context():
         assert svc.dashboard(users["investor"])["balance"] == 4567
+
+
+def test_non_super_admin_cannot_delete_archived_ledger_history(api, seed_transaction, rows):
+    transaction_id = seed_transaction(username="admin", money=4567)
+    assert api("PATCH", "/api/funds/1/archive", "root").status_code == 200
+    assert api("DELETE", f"/api/transactions/{transaction_id}/delete").status_code == 409
+    assert rows("SELECT id FROM Transactions") == [{"id": transaction_id}]
+
+
+def test_cashier_cannot_cancel_archived_ledger_history(client, login, html_post, api, seed_transaction, rows):
+    transaction_id = seed_transaction(username="cashier", money=4567)
+    assert api("PATCH", "/api/funds/1/archive", "root").status_code == 200
+    assert login("cashier").status_code == 302
+    assert html_post(f"/transactions/{transaction_id}/cancel").status_code == 409
+    assert rows("SELECT id FROM Transactions") == [{"id": transaction_id}]
 
 
 def test_inaccessible_counterpart_is_redacted_for_admin(api):

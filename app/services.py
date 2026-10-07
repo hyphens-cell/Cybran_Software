@@ -8,6 +8,7 @@ import sqlite3
 from datetime import date, datetime, timezone
 from functools import wraps
 
+from flask import current_app, g, has_request_context
 from werkzeug.security import generate_password_hash
 
 from .db import atomic, get_db
@@ -23,11 +24,46 @@ class DomainError(Exception):
         self.status = status
 
 
+def _fresh_authorized_user(user):
+    """Re-check the actor inside the write transaction.
+
+    Route authentication happens before dispatch, so a concurrent block,
+    role change, password reset, session revoke, or token revoke must be
+    revalidated immediately before a sensitive mutation.
+    """
+    if not isinstance(user, dict) or not user.get('id'):
+        raise DomainError('Недостаточно прав для этого действия.', 403)
+    row = get_db().execute('SELECT * FROM Users WHERE id=?', (user['id'],)).fetchone()
+    if row is None or not row['is_active']:
+        raise DomainError('Недостаточно прав для этого действия.', 403)
+    if user.get('auth_version') is not None and user['auth_version'] != row['auth_version']:
+        raise DomainError('Сессия больше недействительна.', 401)
+    if has_request_context():
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat(timespec='seconds')
+        session_id = getattr(g, 'web_session_id', None)
+        if session_id is not None:
+            valid = get_db().execute('''SELECT 1 FROM WebSessions
+                WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>? AND auth_version=?''',
+                (session_id, row['id'], now, row['auth_version'])).fetchone()
+            if valid is None:
+                raise DomainError('Сессия больше недействительна.', 401)
+        token_id = getattr(g, 'api_token_id', None)
+        if token_id is not None:
+            valid = get_db().execute('''SELECT 1 FROM ApiTokens
+                WHERE id=? AND user_id=? AND active=1 AND expires_at>?''',
+                (token_id, row['id'], now)).fetchone()
+            if valid is None:
+                raise DomainError('Токен недействителен или отозван.', 401)
+    return dict(row)
+
+
 def write_operation(function):
     @wraps(function)
     def wrapped(*args, **kwargs):
         try:
             with atomic():
+                if has_request_context() and args and isinstance(args[0], dict):
+                    args = (_fresh_authorized_user(args[0]),) + args[1:]
                 return function(*args, **kwargs)
         except sqlite3.IntegrityError as error:
             raise DomainError('Запись уже существует или нарушает целостность данных.', 409) from error
@@ -98,7 +134,8 @@ def record(table, record_id):
     # Table identifiers are internal constants, never request values.
     if table not in ('Users', 'Funds', 'Transactions', 'ApiTokens'):
         raise ValueError('Unknown table')
-    row = get_db().execute(f'SELECT * FROM {table} WHERE id=?', (identifier(record_id),)).fetchone()
+    # The only interpolated identifier is checked against the fixed allowlist above.
+    row = get_db().execute(f'SELECT * FROM {table} WHERE id=?', (identifier(record_id),)).fetchone()  # nosec B608
     if row is None:
         raise DomainError('Запись не найдена.', 404)
     return dict(row)
@@ -270,11 +307,25 @@ def _require_modify(user, transaction):
     require_role(user, 'Super Admin', 'Admin')
     for field in ('from_fund_id', 'to_fund_id'):
         if transaction[field] is not None:
-            require_fund(user, transaction[field])
+            # Super Admin may correct archived history; lower roles may only
+            # mutate transactions while every affected fund is active.
+            require_fund(user, transaction[field], writing=user['role'] != 'Super Admin')
     if user['role'] == 'Admin' and transaction['user_id'] != user['id']:
         author = record('Users', transaction['user_id'])
         if author['role'] != 'Cashier':
             raise DomainError('Можно исправлять только свои операции и операции кассиров.', 403)
+
+
+def transaction_for_modify(user, transaction_id):
+    """Return an editable transaction without revealing inaccessible IDs."""
+    transaction = record('Transactions', transaction_id)
+    try:
+        _require_modify(user, transaction)
+    except DomainError as error:
+        if error.status == 403:
+            raise DomainError('Запись не найдена.', 404) from error
+        raise
+    return transaction
 
 
 def can_modify(user, transaction):
@@ -287,8 +338,7 @@ def can_modify(user, transaction):
 
 @write_operation
 def edit_transaction(user, transaction_id, data):
-    original = record('Transactions', transaction_id)
-    _require_modify(user, original)
+    original = transaction_for_modify(user, transaction_id)
     merged = dict(original)
     merged['fund_id'] = original['to_fund_id'] if original['type'] == 'income' else original['from_fund_id']
     merged.update(data)
@@ -298,15 +348,15 @@ def edit_transaction(user, transaction_id, data):
     values = _transaction_data(user, merged, is_transfer, user['role'] == 'Super Admin')
     columns = ('name','description','money','type','pay_type','datetime','from_fund_id','to_fund_id')
     selector = 'transfer_id' if is_transfer else 'id'
-    get_db().execute(f"UPDATE Transactions SET {','.join(key+'=?' for key in columns)} WHERE {selector}=?",
+    # Identifiers come from the fixed tuple/constants; every external value remains parameterized.
+    get_db().execute(f"UPDATE Transactions SET {','.join(key+'=?' for key in columns)} WHERE {selector}=?",  # nosec B608
                      tuple(values[key] for key in columns)+(original['transfer_id'] if is_transfer else original['id'],))
     return record('Transactions', transaction_id)
 
 
 @write_operation
 def delete_transaction(user, transaction_id):
-    original = record('Transactions', transaction_id)
-    _require_modify(user, original)
+    original = transaction_for_modify(user, transaction_id)
     if original['transfer_id']:
         get_db().execute('DELETE FROM Transactions WHERE transfer_id=?', (original['transfer_id'],))
     else:
@@ -324,8 +374,14 @@ def cancel_last(user, transaction_id):
     require_role(user, 'Cashier', 'Super Admin')
     original = record('Transactions', transaction_id)
     if original['user_id'] != user['id'] or original['id'] != last_cashier_transaction_id(user) or original['type'] == 'inter-transaction':
-        raise DomainError('Можно отменить только свою последнюю операцию.', 403)
-    require_fund(user, original['to_fund_id'] or original['from_fund_id'])
+        raise DomainError('Запись не найдена.', 404)
+    try:
+        require_fund(user, original['to_fund_id'] or original['from_fund_id'],
+                     writing=user['role'] != 'Super Admin')
+    except DomainError as error:
+        if error.status == 403:
+            raise DomainError('Запись не найдена.', 404) from error
+        raise
     get_db().execute('DELETE FROM Transactions WHERE id=?', (original['id'],))
 
 
@@ -353,15 +409,37 @@ def create_user(user, data):
     return _public_user(record('Users', cursor.lastrowid))
 
 
+def _protect_superadmin_access(actor, target, *, role=None, is_active=None):
+    """Prevent administrative changes from removing every active Super Admin."""
+    next_role = target['role'] if role is None else role
+    next_active = bool(target['is_active']) if is_active is None else is_active
+    removes_active_superadmin = (
+        target['role'] == 'Super Admin' and target['is_active']
+        and (next_role != 'Super Admin' or not next_active)
+    )
+    if not removes_active_superadmin:
+        return
+    if actor['id'] == target['id']:
+        if next_role != 'Super Admin':
+            raise DomainError('Нельзя изменить роль собственной учётной записи Super Admin.', 409)
+        raise DomainError('Нельзя заблокировать собственную учётную запись.', 409)
+    remaining = get_db().execute("""SELECT COUNT(*) FROM Users
+        WHERE id<>? AND role='Super Admin' AND is_active=1""", (target['id'],)).fetchone()[0]
+    if remaining == 0:
+        raise DomainError('В системе должен оставаться хотя бы один активный Super Admin.', 409)
+
+
 @write_operation
 def edit_user(user, user_id, data):
     require_role(user, 'Super Admin')
     original = record('Users', user_id)
     values = {**original, **data}
+    role = enum_value(values['role'],ROLES,'Роль')
+    _protect_superadmin_access(user, original, role=role)
     get_db().execute('UPDATE Users SET username=?,fullname=?,role=?,auth_version=auth_version+1 WHERE id=?',
                     (text_value(values['username'],'Логин',50), text_value(values['fullname'],'Полное имя',150),
-                     enum_value(values['role'],ROLES,'Роль'), original['id']))
-    if data.get('password'):
+                     role, original['id']))
+    if 'password' in data:
         reset_password(user, original['id'], data['password'])
     return _public_user(record('Users', user_id))
 
@@ -369,9 +447,10 @@ def edit_user(user, user_id, data):
 @write_operation
 def block_user(user, user_id, is_active):
     require_role(user, 'Super Admin')
-    record('Users', user_id)
+    target = record('Users', user_id)
     if not isinstance(is_active, bool):
         raise DomainError('is_active должен быть true или false.')
+    _protect_superadmin_access(user, target, is_active=is_active)
     get_db().execute('UPDATE Users SET is_active=?,auth_version=auth_version+1 WHERE id=?', (int(is_active),user_id))
     return _public_user(record('Users', user_id))
 
@@ -381,6 +460,7 @@ def reset_password(user, user_id, password):
     require_role(user, 'Super Admin')
     record('Users', user_id)
     get_db().execute('UPDATE Users SET password_hash=?,auth_version=auth_version+1 WHERE id=?', (password_hash(password),user_id))
+    get_db().execute('UPDATE ApiTokens SET active=0 WHERE user_id=?', (user_id,))
 
 
 @write_operation
@@ -444,7 +524,7 @@ def set_rights(user, user_id, fund_ids):
 
 def list_tokens(user):
     require_role(user, 'Super Admin')
-    return [dict(row) for row in get_db().execute('''SELECT t.id,t.user_id,t.active,t.datetime,u.username
+    return [dict(row) for row in get_db().execute('''SELECT t.id,t.user_id,t.active,t.datetime,t.expires_at,u.username
       FROM ApiTokens t JOIN Users u ON u.id=t.user_id ORDER BY t.id DESC''')]
 
 
@@ -455,8 +535,11 @@ def create_token(user, user_id):
     if not owner['is_active']:
         raise DomainError('Пользователь заблокирован.',409)
     token = secrets.token_hex(64)
-    cursor = get_db().execute('INSERT INTO ApiTokens(token,datetime,user_id) VALUES(?,?,?)',
-                             (hashlib.sha256(token.encode()).hexdigest(),timestamp(),owner['id']))
+    created = datetime.now(timezone.utc).replace(tzinfo=None)
+    expires = created + current_app.config['API_TOKEN_LIFETIME']
+    cursor = get_db().execute('INSERT INTO ApiTokens(token,datetime,expires_at,user_id) VALUES(?,?,?,?)',
+                             (hashlib.sha256(token.encode()).hexdigest(),
+                              created.isoformat(timespec='seconds'), expires.isoformat(timespec='seconds'), owner['id']))
     return {'id':cursor.lastrowid,'token':token,'user_id':owner['id']}
 
 
@@ -465,6 +548,46 @@ def revoke_token(user, token_id):
     require_role(user, 'Super Admin')
     record('ApiTokens',token_id)
     get_db().execute('UPDATE ApiTokens SET active=0 WHERE id=?',(token_id,))
+
+
+def list_web_sessions(user):
+    require_role(user, 'Super Admin')
+    now = timestamp()
+    return [dict(row) for row in get_db().execute('''SELECT s.id,s.user_id,s.created_at,s.last_seen_at,
+        s.expires_at,s.ip_address,s.user_agent,u.username,u.fullname,u.role
+        FROM WebSessions s JOIN Users u ON u.id=s.user_id
+        WHERE s.revoked_at IS NULL AND s.expires_at>? AND s.auth_version=u.auth_version AND u.is_active=1
+        ORDER BY s.last_seen_at DESC,s.id DESC''', (now,))]
+
+
+@write_operation
+def revoke_web_session(user, session_id):
+    require_role(user, 'Super Admin')
+    session_id = identifier(session_id)
+    row = get_db().execute('SELECT id,revoked_at,expires_at FROM WebSessions WHERE id=?',
+                           (session_id,)).fetchone()
+    if row is None:
+        raise DomainError('Сессия не найдена.', 404)
+    if row['revoked_at'] is not None or row['expires_at'] <= timestamp():
+        raise DomainError('Сессия уже завершена.', 409)
+    get_db().execute('UPDATE WebSessions SET revoked_at=?,revoked_by=? WHERE id=?',
+                     (timestamp(), user['id'], session_id))
+    return session_id
+
+
+@write_operation
+def revoke_all_web_sessions(user, keep_session_id=None):
+    require_role(user, 'Super Admin')
+    now = timestamp()
+    if keep_session_id is None:
+        cursor = get_db().execute('''UPDATE WebSessions SET revoked_at=?,revoked_by=?
+            WHERE revoked_at IS NULL AND expires_at>?''', (now, user['id'], now))
+    else:
+        keep_session_id = identifier(keep_session_id)
+        cursor = get_db().execute('''UPDATE WebSessions SET revoked_at=?,revoked_by=?
+            WHERE revoked_at IS NULL AND expires_at>? AND id<>?''',
+            (now, user['id'], now, keep_session_id))
+    return cursor.rowcount
 
 
 def dashboard(user, filters=None):

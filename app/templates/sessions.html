@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% from 'components/icons.html' import icon %}
+{% block title %}Активные сессии{% endblock %}
+{% block breadcrumb %}Активные сессии{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">БЕЗОПАСНОСТЬ</div>
+    <h1>Активные сессии<span class="heading-dot">.</span></h1>
+    <p>Просматривайте входы пользователей и немедленно завершайте подозрительные сессии. Любая сессия автоматически завершается через 24 часа после входа.</p>
+  </div>
+  <div class="heading-actions session-bulk-actions">
+    <form method="post" action="{{ url_for('web.web_sessions_revoke_all') }}" data-confirm="Завершить все сессии, кроме текущей? Пользователям потребуется войти заново.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="scope" value="others">
+      <button class="btn btn-outline-secondary" type="submit">{{ icon('logout', 17) }} Завершить остальные</button>
+    </form>
+    <form method="post" action="{{ url_for('web.web_sessions_revoke_all') }}" data-confirm="Завершить абсолютно все сессии, включая вашу? Вы сразу выйдете из системы.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="scope" value="all">
+      <button class="btn btn-outline-danger" type="submit">{{ icon('lock', 17) }} Завершить все</button>
+    </form>
+  </div>
+</div>
+
+<div class="safety-notice session-policy">
+  {{ icon('clock', 24) }}
+  <div><strong>Максимальный срок — 24 часа</strong><span>Продление активности не сдвигает срок. После истечения сервер отклонит даже скопированную cookie.</span></div>
+</div>
+
+<section class="panel">
+  <div class="panel-heading"><h2>Сейчас в системе</h2><span class="count-badge">{{ sessions|length }}</span></div>
+  {% if sessions %}
+  <div class="session-list">
+    {% for item in sessions %}
+    <article class="session-card {{ 'current-user-row' if item.id == current_session_id }}">
+      <div class="user-cell session-user"><div class="avatar avatar-light">{{ (item.fullname or item.username)[:1]|upper }}</div><div><strong>{{ item.fullname or item.username }}</strong>{% if item.id == current_session_id %}<span class="you-label">Текущая</span>{% endif %}<span>{{ item.username }} · {{ role_labels[item.role] }}</span></div></div>
+      <div class="session-times">
+        <div><span>Вход · UTC</span><strong>{{ item.created_at[:16]|replace('T', ' ') }}</strong></div>
+        <div><span>Последняя активность</span><strong>{{ item.last_seen_at[:16]|replace('T', ' ') }}</strong></div>
+        <div><span>Автовыход · UTC</span><strong>{{ item.expires_at[:16]|replace('T', ' ') }}</strong></div>
+      </div>
+      <div class="session-origin"><span>Подключение</span><code>{{ item.ip_address or '—' }}</code><small title="{{ item.user_agent }}">{{ item.user_agent|truncate(64, True) if item.user_agent else 'Устройство не определено' }}</small></div>
+      <form class="session-action" method="post" action="{{ url_for('web.web_session_revoke', session_id=item.id) }}" data-confirm="{{ 'Завершить текущую сессию? Вы выйдете из системы.' if item.id == current_session_id else 'Завершить эту сессию пользователя?' }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-danger" type="submit">{{ icon('logout', 16) }} {{ 'Выйти' if item.id == current_session_id else 'Завершить' }}</button>
+      </form>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state"><div class="empty-icon">{{ icon('clock', 28) }}</div><h3>Активных сессий нет</h3><p>Новые входы появятся здесь автоматически.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -28,8 +28,9 @@ def app(tmp_path, seed_password_hash):
             db.execute("INSERT INTO Users(id,username,fullname,password_hash,role) VALUES(?,?,?,?,?)",
                        (user_id, username, f"Имя {username}", seed_password_hash, role))
             token = hashlib.sha512(f"fixture-token-{username}".encode()).hexdigest()
-            db.execute("INSERT INTO ApiTokens(id,token,datetime,user_id) VALUES(?,?,?,?)",
-                       (user_id, hashlib.sha256(token.encode()).hexdigest(), "2026-01-01T00:00:00", user_id))
+            db.execute("INSERT INTO ApiTokens(id,token,datetime,expires_at,user_id) VALUES(?,?,?,?,?)",
+                       (user_id, hashlib.sha256(token.encode()).hexdigest(), "2026-01-01T00:00:00",
+                        "2099-01-01T00:00:00", user_id))
         db.executemany("INSERT INTO Funds(id,name,description,type,user_id) VALUES(?,?,?,?,1)", [
             (1, "Main fund", "Основной фонд", "for_stats"),
             (2, "Second fund", "Второй фонд", "for_stats"),

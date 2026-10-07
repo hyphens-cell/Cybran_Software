@@ -107,10 +107,10 @@ def test_foreign_fund_create_and_edit_are_forbidden(api, seed_transaction, balan
 def test_admin_edit_delete_author_rule(api, seed_transaction, balance, username, allowed):
     transaction_id = seed_transaction(username=username)
     response = api("PUT", f"/api/transactions/{transaction_id}/edit", data={"money": 777})
-    assert response.status_code == (200 if allowed else 403)
+    assert response.status_code == (200 if allowed else 404)
     assert balance(1) == (777 if allowed else 10000)
     response = api("DELETE", f"/api/transactions/{transaction_id}/delete")
-    assert response.status_code == (204 if allowed else 403)
+    assert response.status_code == (204 if allowed else 404)
     assert balance(1) == (0 if allowed else 10000)
 
 

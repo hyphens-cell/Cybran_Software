@@ -32,6 +32,7 @@
     <a class="nav-link {{ 'active' if request.endpoint in ['web.users', 'web.user_form'] }}" href="{{ url_for('web.users') }}">{{ icon('users') }} Пользователи</a>
     <a class="nav-link {{ 'active' if request.endpoint == 'web.rights' }}" href="{{ url_for('web.rights') }}">{{ icon('shield') }} Права доступа</a>
     <a class="nav-link {{ 'active' if request.endpoint == 'web.tokens' }}" href="{{ url_for('web.tokens') }}">{{ icon('key') }} API-токены</a>
+    <a class="nav-link {{ 'active' if request.endpoint in ['web.web_sessions', 'web.web_session_revoke', 'web.web_sessions_revoke_all'] }}" href="{{ url_for('web.web_sessions') }}">{{ icon('clock') }} Активные сессии</a>
   {% endif %}
   </nav>
   <div class="sidebar-bottom">
@@ -41,7 +42,7 @@
   </div>
 </aside>
 <div class="app-shell">
-  <header class="topbar"><div class="d-flex align-items-center gap-3"><button id="nav-toggle" type="button" class="icon-button mobile-toggle" aria-label="Открыть меню" aria-expanded="false" aria-controls="sidebar">{{ icon('menu') }}</button><span class="breadcrumb-label">Рабочее пространство <span>/</span> <strong>{% block breadcrumb %}Финансы{% endblock %}</strong></span></div><div class="topbar-right">{% if current_user.role == 'Investor' %}<span class="read-only">{{ icon('lock', 13) }} Только просмотр</span>{% endif %}<span class="topbar-date">{{ icon('calendar', 15) }} {{ today[8:10] }}.{{ today[5:7] }}.{{ today[:4] }}</span></div></header>
+  <header class="topbar"><div class="d-flex align-items-center gap-3"><button id="nav-toggle" type="button" class="icon-button mobile-toggle" aria-label="Открыть меню" aria-expanded="false" aria-controls="sidebar">{{ icon('menu') }}<span>Меню</span></button><span class="breadcrumb-label">Рабочее пространство <span>/</span> <strong>{% block breadcrumb %}Финансы{% endblock %}</strong></span></div><div class="topbar-right"><span class="current-role">{{ role_labels[current_user.role] }}</span>{% if current_user.role == 'Investor' %}<span class="read-only">{{ icon('lock', 13) }} Только просмотр</span>{% endif %}<span class="topbar-date">{{ icon('calendar', 15) }} {{ today[8:10] }}.{{ today[5:7] }}.{{ today[:4] }}</span></div></header>
   <main id="main" class="main-content">
 {% else %}<main id="main" class="guest-content">{% endif %}
   {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="alert alert-{{ category if category in ['success','danger','warning','info'] else 'info' }} d-flex align-items-start gap-2" role="alert">{{ icon('check' if category == 'success' else 'info', 18) }}<span>{{ message }}</span></div>{% endfor %}{% endwith %}

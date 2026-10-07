@@ -1,25 +1,47 @@
 import os
 import secrets
 import sqlite3
+from datetime import timedelta
 from pathlib import Path
 
 import click
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 
+from .config import DEFAULT_PAYMENT_METHODS, load_project_env, parse_payment_methods
 from .db import atomic, close_db, init_db
+
+load_project_env()
 
 
 def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
         DATABASE=os.environ.get('CYBRAN_DATABASE', str(Path(app.instance_path) / 'cybran.sqlite3')),
+        PAYMENT_METHODS=os.environ.get('PAYMENT_METHODS', ','.join(DEFAULT_PAYMENT_METHODS)),
         SECRET_KEY=os.environ.get('SECRET_KEY'),
         CSRF_ENABLED=True, SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
         SESSION_COOKIE_SECURE=os.environ.get('COOKIE_SECURE') == '1', MAX_CONTENT_LENGTH=1024*1024,
+        PERMANENT_SESSION_LIFETIME=timedelta(hours=24), SESSION_REFRESH_EACH_REQUEST=False,
+        WEB_SESSION_LIFETIME=timedelta(hours=24),
+        WEB_SESSION_RETENTION=timedelta(days=30),
+        LOGIN_RATE_WINDOW=timedelta(minutes=5), LOGIN_ACCOUNT_ATTEMPTS=5,
+        LOGIN_ACCOUNT_GLOBAL_ATTEMPTS=20, LOGIN_IP_ATTEMPTS=30, LOGIN_ATTEMPT_MAX_ROWS=10000,
+        API_TOKEN_LIFETIME=timedelta(days=30),
+        TRUSTED_PROXY_HOPS=int(os.environ.get('TRUSTED_PROXY_HOPS', '0')),
     )
     if test_config:
         app.config.update(test_config)
+    app.config['PAYMENT_METHODS'] = parse_payment_methods(app.config.get('PAYMENT_METHODS'))
+    trusted_proxy_hops = max(0, int(app.config.get('TRUSTED_PROXY_HOPS', 0)))
+    if trusted_proxy_hops:
+        # Trust forwarded client identity only when the deployment explicitly
+        # declares the exact number of controlled proxy hops. The proxy/backend
+        # network boundary must prevent direct client access to the backend.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=trusted_proxy_hops,
+                                x_proto=trusted_proxy_hops)
+    app.config.setdefault('DEMO_MODE', Path(app.config['DATABASE']).name.casefold() == 'demo.sqlite3')
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     if not app.config['SECRET_KEY']:
         secret_path = Path(app.instance_path) / 'session.key'
@@ -43,7 +65,8 @@ def create_app(test_config=None):
     @app.context_processor
     def template_context():
         from flask import g
-        return {'current_user': getattr(g, 'user', None), 'csrf_token': auth.csrf_token}
+        return {'current_user': getattr(g, 'user', None), 'csrf_token': auth.csrf_token,
+                'demo_mode': app.config['DEMO_MODE'], 'payment_methods': app.config['PAYMENT_METHODS']}
 
     @app.template_filter('money')
     def money(value):
@@ -83,6 +106,13 @@ def create_app(test_config=None):
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Referrer-Policy'] = 'same-origin'
+        response.headers['Content-Security-Policy'] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; object-src 'none'; base-uri 'self'; "
+            "frame-ancestors 'none'; form-action 'self'")
+        response.headers['Permissions-Policy'] = 'camera=(), geolocation=(), microphone=()'
+        if request.is_secure:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
         if not request.path.startswith('/static/'):
             response.headers['Cache-Control'] = 'no-store'
         return response
