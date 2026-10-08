@@ -1,4 +1,4 @@
-"""Isolated SQLite fixtures and real HTTP authentication for acceptance tests."""
+"""Изолированные SQLite-фикстуры и настоящая HTTP-аутентификация для приёмочных тестов."""
 import hashlib
 
 import pytest
@@ -87,7 +87,7 @@ def html_post(client):
 
 @pytest.fixture
 def seed_transaction(app, users):
-    """Seed independent ordinary ledger rows for permission/report tests."""
+    """Создать независимые обычные записи журнала для тестов прав и отчётности."""
     def create(*, username="admin", fund_id=1, kind="income", money=10000,
                day="2026-04-15T12:00:00", pay_type="Kaspi", name="Fixture operation", description=""):
         with app.app_context():

@@ -1,4 +1,4 @@
-"""Cookie sessions for HTML and independent Bearer authentication for REST."""
+"""Cookie-сессии HTML и независимая Bearer-аутентификация REST API."""
 import hashlib
 import secrets
 from datetime import datetime, timezone
@@ -61,8 +61,9 @@ def _reserve_login_attempt(username=None):
         db = get_db()
         db.execute('DELETE FROM LoginAttempts WHERE window_started_at<=?', (_iso(window_start),))
         keys = _login_rate_keys(username)
-        # Evaluate the peer bucket before allocating any username-specific
-        # state. A blocked client cannot grow LoginAttempts with fresh names.
+        # Сначала проверяем общий лимит клиента и только потом создаём
+        # состояние для логина. Заблокированный клиент не сможет раздувать
+        # LoginAttempts перебором новых имён.
         ip_key, ip_limit = keys[-1]
         ip_row = db.execute('SELECT attempts,window_started_at FROM LoginAttempts WHERE key_hash=?',
                             (ip_key,)).fetchone()
@@ -84,8 +85,9 @@ def _reserve_login_attempt(username=None):
                 get_db().execute('UPDATE LoginAttempts SET attempts=? WHERE key_hash=?', (attempts, key_hash))
             if attempts > limit:
                 blocked_for = max(blocked_for, int((started_at + current_app.config['LOGIN_RATE_WINDOW'] - now).total_seconds()) + 1)
-        # The peer row is updated last so a blocked peer never receives a new
-        # account row. It still counts the request that reached its limit.
+        # Общую строку клиента обновляем последней: заблокированный клиент не
+        # получает новые строки учётных записей, но достигший лимита запрос
+        # всё равно учитывается.
         row = db.execute('SELECT attempts,window_started_at FROM LoginAttempts WHERE key_hash=?', (ip_key,)).fetchone()
         if row is None or datetime.fromisoformat(row['window_started_at']) <= window_start:
             attempts, started_at = 1, now
@@ -114,7 +116,7 @@ def _clear_account_login_attempts(username):
 
 
 def _create_web_session(user):
-    """Create a revocable, absolute-lifetime browser session."""
+    """Создать отзывную браузерную сессию с абсолютным сроком жизни."""
     token = secrets.token_urlsafe(SESSION_TOKEN_BYTES)
     now = _utc_now()
     expires = now + current_app.config['WEB_SESSION_LIFETIME']
@@ -182,6 +184,7 @@ def _prune_web_sessions(now=None):
 
 
 def login_required(view):
+    """Разрешить HTML-маршрут только действующей серверной сессии."""
     @wraps(view)
     def wrapped(*args, **kwargs):
         if g.user is None:
@@ -191,6 +194,7 @@ def login_required(view):
 
 
 def roles_required(*roles):
+    """Добавить проверку роли поверх обязательной браузерной сессии."""
     def decorator(view):
         @wraps(view)
         @login_required
@@ -203,10 +207,15 @@ def roles_required(*roles):
 
 
 def authenticate_api():
+    """Проверить Bearer-токен и установить активного владельца API-запроса."""
     auth = request.headers.get('Authorization', '').split()
     if len(auth) != 2 or auth[0].lower() != 'bearer' or len(auth[1]) != 128:
         abort(401, description='Требуется действующий Bearer API token.')
+    # Открытый токен сразу превращается в SHA-256: в БД и журналах не хранится
+    # секрет, который пользователь передал в заголовке запроса.
     digest = hashlib.sha256(auth[1].encode('utf-8')).hexdigest()
+    # Одновременно проверяем отзыв, срок действия и активность владельца, чтобы
+    # заблокированный пользователь или отозванный токен потерял доступ немедленно.
     row = get_db().execute('''SELECT u.*,t.id AS api_token_id FROM Users u JOIN ApiTokens t ON t.user_id=u.id
         WHERE t.token=? AND t.active=1 AND t.expires_at>? AND u.is_active=1''',
         (digest, _iso(_utc_now()))).fetchone()

@@ -1,11 +1,11 @@
-# Security Audit Report
+# Отчёт аудита безопасности
 
 Дата аудита: 2026-10-07  
 Проект: Cybran Software (`Python / Flask / SQLite / Jinja2 / Bootstrap`)  
 Охват: весь текущий репозиторий, локальный экземпляр `127.0.0.1:5000`  
 Статус: исправления применены и проверены; канонические Codex Security Deep и повторный Standard scans запечатаны.
 
-## 1. Executive Summary
+## 1. Резюме
 
 Подтверждённых Critical или High уязвимостей после исправлений нет. Устранены повторное использование украденной cookie после выхода, отсутствие серверного управления сессиями, 31-дневный неявный срок browser-cookie, отсутствие ограничения попыток входа, timing/rate-limit oracle имени пользователя, общий lockout за reverse proxy, удаление истории архивного фонда нижними ролями, бессрочные API-токены, сохранение токена после сброса пароля, различимые ответы для чужих transaction ID, отсутствующая CSP и известные уязвимости зафиксированных версий Flask/pytest.
 
@@ -15,7 +15,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 
 Простые пароли сохранены только для явно выбранной демонстрационной базы по прямому требованию владельца. Деморежим теперь заметно помечен на странице входа и в терминале. Использование demo DB с реальными данными или в недоверенной сети запрещено.
 
-## 2. Tools Used
+## 2. Использованные инструменты
 
 - **Codex Security Deep Scan** — канонически завершён и запечатан; 13 findings на pre-fix snapshot.
 - **Codex Security Standard Scan** — повторно выполнен по текущему дереву и запечатан; 3 findings (2 Medium, 1 Low).
@@ -24,12 +24,12 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **pip-audit 2.10.1** — запуск выполнен, но доступ к `pypi.org` заблокирован Windows sandbox (`WinError 10013`); итог базы уязвимостей не получен.
 - **Semgrep 1.179.0** — запуск профилей Python/Flask/OWASP/secrets выполнен, но конфигурации не загрузились на этом хосте из-за certificate/network/config error; валидного нулевого отчёта нет.
 - **OWASP ZAP** — CLI/API отсутствует на машине. Проверена доступность инструмента; вместо active scan выполнен безопасный localhost baseline без destructive testing.
-- **pytest 9.0.3** — полный regression/security suite: `219 passed` после всех исправлений.
+- **pytest 9.0.3** — полный regression/security suite: `222 passed` после всех исправлений.
 - Ручной source review, Jinja compile, SQLite integrity/foreign-key checks, browser visual QA и безопасные HTTP-пробы.
 
 Полный требуемый `bandit -r .` был выполнен в JSON и текстовом форматах. Оба запуска дошли до форматирования результатов, но не смогли сериализовать намеренно некорректный Unicode-суррогат из regression-теста; это ограничение вывода инструмента, а не подтверждённая уязвимость. Повторный production scan `bandit -r app run.py` завершился одним осознанным `B104` для LAN bind в `run.py:11`; SQL `B608` отмечены как проверенные false positive: идентификаторы берутся только из фиксированных allowlist/tuple, значения параметризованы.
 
-## 3. Attack Surface
+## 3. Поверхность атаки
 
 Основные точки входа:
 
@@ -43,7 +43,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 
 Прямой upload/download по пользовательскому пути, SSRF-клиент, shell/subprocess, pickle/deserialization и пользовательский выбор шаблона отсутствуют.
 
-### Route authorization matrix
+### Матрица авторизации маршрутов
 
 `PASS` означает проверку прав на backend. `PASS/MITIGATED` означает, что найденный риск исправлен и покрыт regression-тестом.
 
@@ -97,7 +97,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 
 В проекте нет ролей Student/Staff. Их эквивалентные негативные сценарии проверены как Cashier/Investor → Admin/Super Admin, Admin → Super Admin, user/fund A → object B.
 
-## 4. Authentication and Authorization
+## 4. Аутентификация и авторизация
 
 - Login очищает прежнюю cookie, создаёт криптографически случайный server session token и хранит в SQLite только SHA-256 hash.
 - Browser-сессия проверяет: пользователя, `is_active`, `auth_version`, server-side revoke state и абсолютный `expires_at`.
@@ -112,9 +112,9 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - Role и object checks выполняются в service layer, поэтому прямой endpoint-вызов не обходит UI.
 - Self-block, self-downgrade и удаление последнего активного Super Admin запрещены внутри `BEGIN IMMEDIATE`.
 
-## 5. Vulnerabilities
+## 5. Уязвимости
 
-### CYB-SEC-001 — Plaintext LAN transport
+### CYB-SEC-001 — Незашифрованный транспорт в LAN
 
 - **Severity:** Medium (remaining, deployment-dependent)
 - **CWE:** CWE-319, CWE-614
@@ -128,7 +128,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** TLS reverse proxy/tunnel, trusted certificate, `COOKIE_SECURE=1`; do not send Bearer over HTTP.
 - **Status:** **Documented remaining risk.** Terminal warning and README restriction added. Accepted only for isolated trusted LAN/mobile demo.
 
-### CYB-SEC-002 — Logout did not revoke copied cookie
+### CYB-SEC-002 — Logout не отзывал скопированную cookie
 
 - **Severity:** Medium; part of the initial High chain when combined with plaintext transport
 - **CWE:** CWE-613
@@ -138,7 +138,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** server-side session registry, hashed session token, logout/admin revocation and 24-hour absolute expiry.
 - **Status:** **Fixed.** Copied-cookie replay regression test passes.
 
-### CYB-SEC-003 — Unlimited login attempts and username timing oracle
+### CYB-SEC-003 — Неограниченные попытки входа и временная oracle-утечка имени
 
 - **Severity:** Medium
 - **CWE:** CWE-307, CWE-208
@@ -148,7 +148,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** persistent bounded window rate limit, `429/Retry-After`, dummy PBKDF2 verification and stale-counter cleanup.
 - **Status:** **Fixed.** Boundary and storage-growth tests pass.
 
-### CYB-SEC-009 — Login rate-limit discrepancy disclosed username existence
+### CYB-SEC-009 — Различие rate limit раскрывало существование имени
 
 - **Severity:** Medium (fixed)
 - **CWE:** CWE-204
@@ -158,7 +158,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** derive the account bucket from a normalized username hash before lookup, while retaining the per-IP bucket; known and unknown names now receive the same 5-attempt limit and `429/Retry-After` behavior.
 - **Status:** **Fixed.** Regression coverage verifies identical throttling for a real and a missing username; focused auth suite passes.
 
-### CYB-SEC-010 — Reverse-proxy peer address caused shared login lockout
+### CYB-SEC-010 — Адрес reverse proxy вызывал общий lockout входа
 
 - **Severity:** Medium (fixed with explicit deployment configuration)
 - **CWE:** CWE-400
@@ -168,7 +168,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** add `TRUSTED_PROXY_HOPS` and Werkzeug `ProxyFix` for the exact controlled hop count, so rate-limit keys use the real client address. Documentation requires the backend firewall boundary and forbids trusting forwarded headers from direct clients.
 - **Status:** **Fixed in code; deployment gate documented.** Regression test verifies two forwarded client addresses receive independent login buckets. Edge rate limiting remains recommended.
 
-### CYB-SEC-011 — Archived ledger deletion by lower roles
+### CYB-SEC-011 — Удаление архивного журнала нижними ролями
 
 - **Severity:** Medium (fixed)
 - **CWE:** CWE-862, CWE-639
@@ -178,7 +178,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** service-layer mutation checks now pass `writing=True` for Admin/Cashier fund access, while Super Admin retains the documented archived-history correction path. Both HTML and Bearer API routes use the same service guard.
 - **Status:** **Fixed.** Regression tests cover Admin deletion and Cashier cancellation after archive; Super Admin correction tests remain green.
 
-### CYB-SEC-012 — Login-attempt rows could grow from fresh usernames
+### CYB-SEC-012 — Строки попыток входа росли от новых имён
 
 - **Severity:** Medium (fixed)
 - **CWE:** CWE-400
@@ -188,7 +188,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** evaluate the peer bucket before allocating account-specific rows, purge expired rows, and enforce a hard maximum row count with oldest-row eviction. An account-wide bounded bucket also limits distributed guessing.
 - **Status:** **Fixed.** Regression tests verify blocked clients do not allocate fresh rows and account throttling survives rotating proxy clients.
 
-### CYB-SEC-013 — Account guess budget depended on source address
+### CYB-SEC-013 — Бюджет подбора зависел от исходного адреса
 
 - **Severity:** Medium (fixed)
 - **CWE:** CWE-307
@@ -198,7 +198,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** add a normalized username account bucket with an address-independent limit, retain the per-account/IP and peer limits, and keep known/unknown response behavior equalized.
 - **Status:** **Fixed.** A regression test rotates 21 forwarded client addresses and confirms the account budget returns `429`.
 
-### CYB-SEC-014 — Revocation could race a later write
+### CYB-SEC-014 — Отзыв мог пересечься с последующей записью
 
 - **Severity:** Medium (fixed)
 - **CWE:** CWE-613, CWE-367
@@ -208,7 +208,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** every request-bound `write_operation` reloads the actor inside `BEGIN IMMEDIATE` and rechecks active state, auth version, browser session row, or API token row before dispatching the service function.
 - **Status:** **Fixed.** Direct service tests and the full API/management suites pass.
 
-### CYB-SEC-015 — Revoked and expired session rows had no retention bound
+### CYB-SEC-015 — Отозванные и истёкшие сессии не имели срока хранения
 
 - **Severity:** Low (fixed)
 - **CWE:** CWE-400
@@ -218,7 +218,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** prune expired sessions and revoked sessions older than the configured 30-day audit retention during request processing; current expired-session behavior is preserved before pruning.
 - **Status:** **Fixed.** Retention regression test passes.
 
-### CYB-SEC-016 — Ledger growth is not bounded by an application quota
+### CYB-SEC-016 — Рост журнала не ограничивался квотой приложения
 
 - **Severity:** Low (availability/operations)
 - **CWE:** CWE-400
@@ -227,7 +227,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Attack scenario:** an authenticated writer can continue creating valid transactions until the SQLite file, backups, or available disk space become the limiting resource. This is an operational capacity risk rather than an unauthorized-write path; role, fund Rights, validation and archived-fund checks still apply.
 - **Fix/status:** **Documented residual risk.** Add deployment-level disk quotas, backup/retention monitoring and alerting before high-volume or internet-facing use. No safe destructive load test was run.
 
-### CYB-SEC-004 — API token survived compromise recovery and had no expiry
+### CYB-SEC-004 — API-токен переживал восстановление после компрометации и не истекал
 
 - **Severity:** Medium
 - **CWE:** CWE-613
@@ -237,7 +237,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** 30-day absolute expiry; password reset revokes all owner tokens; expiry shown in UI.
 - **Status:** **Fixed.** Expired/reset token tests pass.
 
-### CYB-SEC-005 — Transaction existence oracle
+### CYB-SEC-005 — Oracle существования транзакции
 
 - **Severity:** Low
 - **CWE:** CWE-203, CWE-639
@@ -248,7 +248,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** inaccessible and absent protected transactions both return 404.
 - **Status:** **Fixed.** HTML/API regression tests pass.
 
-### CYB-SEC-006 — Missing browser containment headers
+### CYB-SEC-006 — Не хватало заголовков изоляции браузера
 
 - **Severity:** Low
 - **CWE:** CWE-693
@@ -258,7 +258,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** CSP, Permissions-Policy and HTTPS-only HSTS.
 - **Status:** **Fixed as hardening.** Jinja autoescape remains the primary XSS control.
 
-### CYB-SEC-007 — Predictable demo credentials
+### CYB-SEC-007 — Предсказуемые демо-реквизиты
 
 - **Severity:** Medium only if demo DB is exposed outside an isolated test environment
 - **CWE:** CWE-798
@@ -269,7 +269,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** production must use `create-superadmin`, a clean DB and unique strong credentials.
 - **Status:** **Accepted demo-only risk.** Seed is explicit/empty-DB-only; instance is ignored; login and terminal show a prominent demo warning. Values are not reproduced in this report.
 
-### CYB-SEC-008 — Vulnerable dependency pins
+### CYB-SEC-008 — Уязвимые закреплённые версии зависимостей
 
 - **Severity:** Low runtime + Medium dev/UNIX conditional
 - **CVE:** CVE-2026-27205 (Flask 3.1.2), CVE-2025-71176 (pytest 8.4.2)
@@ -277,7 +277,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 - **Fix:** Flask 3.1.3; pytest 9.0.3; pip 26.2.1 in the audit environment.
 - **Status:** **Pinned versions updated; automated advisory verification is pending.** `pip-audit` could not reach `pypi.org` in this environment, so no zero-vulnerability claim is made here.
 
-## 6. Dependency Vulnerabilities
+## 6. Уязвимости зависимостей
 
 | Package | Before | Advisory | Severity/context | Fixed version | Result |
 |---|---:|---|---|---:|---|
@@ -287,7 +287,7 @@ Super Admin теперь видит активные browser-сессии, IP, �
 
 Current dependency evidence: `pip check` reports **No broken requirements found**. `pip-audit` was attempted with a short timeout but could not connect to `pypi.org` (`WinError 10013`), so advisory status remains unverified until CI or a network-enabled host runs it.
 
-## 7. Static Analysis
+## 7. Статический анализ
 
 ### Bandit
 
@@ -301,13 +301,13 @@ Current dependency evidence: `pip check` reports **No broken requirements found*
 - Packs: Python, Flask, OWASP Top 10, secrets, SQL injection, command injection, insecure transport.
 - The configured production profiles were attempted, but Semgrep could not load the remote/local rule packs on this host (certificate/config/network error) and produced no valid JSON findings report. This is an environmental limitation, not a clean scan result. All 19 current templates are compiled separately by Jinja.
 
-### Manual static review
+### Ручная статическая проверка
 
 - No `eval`, `exec`, shell execution, unsafe deserialization, upload sink, user-controlled file path or outbound HTTP client.
 - No `|safe`, `Markup`, `render_template_string`, dynamic template name or dangerous DOM HTML sink.
 - No real provider key/private key/token in the working tree or four available Git commits. Values from test/demo fixtures are classified separately and masked.
 
-## 8. Dynamic Analysis
+## 8. Динамический анализ
 
 OWASP ZAP is not installed; no third-party target was scanned. Safe localhost checks covered:
 
@@ -325,7 +325,7 @@ OWASP ZAP is not installed; no third-party target was scanned. Safe localhost ch
 
 No destructive testing, DoS, external IP/domain scan or database deletion was performed.
 
-## 9. Attack Paths
+## 9. Пути атаки
 
 1. **LAN HTTP → captured cookie/Bearer → privileged endpoint** — reportable Medium, remains until HTTPS. Server-side expiry/revocation limits duration but cannot encrypt transit.
 2. **Published demo instance → known simple Super Admin password → control plane** — conditional Medium; accepted only in isolated demo scope, warning added.
@@ -338,7 +338,7 @@ No destructive testing, DoS, external IP/domain scan or database deletion was pe
 9. **Stored/reflected text → XSS → victim action** — ignored; no executable source-to-sink path. CSP added as containment.
 10. **Host/next input → external redirect** — ignored; no external URL sink.
 
-## 10. Fixes Applied
+## 10. Применённые исправления
 
 - Server-side hashed browser-session registry.
 - Super Admin active-session page and single/bulk termination.
@@ -356,7 +356,7 @@ No destructive testing, DoS, external IP/domain scan or database deletion was pe
 - Flask, pytest and pip security updates.
 - Focused regression coverage for every applied fix.
 
-## 11. Remaining Risks
+## 11. Остаточные риски
 
 - **Medium:** plaintext HTTP on LAN/mobile. Treat the network as trusted or deploy TLS.
 - **Medium conditional:** simple demo credentials if the demo DB is exposed. Never use demo mode with real data.
@@ -366,7 +366,7 @@ No destructive testing, DoS, external IP/domain scan or database deletion was pe
 - OWASP ZAP active/passive scanner evidence is unavailable on this host; safe localhost baseline is documented instead.
 - Canonical Codex Security Deep Scan is sealed with 13 findings (8 Medium, 5 Low) against its earlier snapshot; fixed findings are reconciled below. The repeat current-tree Standard scan `8bf38005-df71-4df8-8fd3-ff554bc45847` is also sealed with 3 findings (2 Medium, 1 Low): the remaining HTTP LAN/demo deployment risks and low operational ledger-growth risk.
 
-## 12. Production Hardening
+## 12. Усиление production-конфигурации
 
 1. Put Waitress behind HTTPS reverse proxy; set `COOKIE_SECURE=1`; keep HSTS enabled only on HTTPS.
 2. Bind loopback by default in production orchestration; explicitly expose only the intended interface/firewall subnet.
@@ -378,11 +378,11 @@ No destructive testing, DoS, external IP/domain scan or database deletion was pe
 8. Run Bandit, pip-audit, Semgrep and the complete test suite in CI on every dependency/code change.
 9. Run OWASP ZAP baseline against a disposable HTTPS staging instance before release.
 
-## 13. Final Verification
+## 13. Финальная проверка
 
 Current verified evidence:
 
-- `pytest -q --basetemp=tmp\pytest_config_full`: **219 passed in 50.91s** after adding project `.env` and configurable payment-method settings; bounded limiter, TOCTOU and session-retention fixes remain green.
+- `pytest -q --basetemp=tmp\pytest_config_full`: **222 passed in 96.18s** after adding project `.env` and configurable payment-method settings; bounded limiter, TOCTOU and session-retention fixes remain green.
 - Focused auth/session/control suites: **68 passed** for auth + sessions; **44 passed** for management + integrity; **60 passed** for auth limiter after bounded-budget fixes.
 - Frontend-focused checks: **3 passed**.
 - Bandit final: only intentional/reportable `B104` LAN bind.

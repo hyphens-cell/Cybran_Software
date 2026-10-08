@@ -1,4 +1,4 @@
-/* Progressive enhancements only. Every form submits to Flask. */
+/* Только необязательные улучшения; каждая форма отправляется в Flask. */
 (() => {
   const toggle = document.getElementById('nav-toggle');
   const closeNavigation = () => {

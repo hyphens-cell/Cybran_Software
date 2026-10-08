@@ -1,46 +1,46 @@
-# Security Checklist
+# Контрольный список безопасности
 
-- [x] Authentication checked
-- [x] Authorization checked
-- [x] Role escalation checked
-- [x] IDOR checked
-- [x] SQL injection checked
-- [x] XSS checked
-- [x] CSRF checked
-- [x] SSTI checked
-- [x] SSRF checked
-- [x] Path traversal checked
-- [x] File uploads checked — no upload surface exists
-- [x] Sessions checked
-- [x] Cookies checked
-- [x] Secrets checked
-- [x] Dependencies checked
-- [x] Flask configuration checked
-- [x] HTTP headers checked
-- [x] Bandit checked — required full-tree run reached a formatter error on the surrogate regression fixture; production scan has only the intentional `0.0.0.0` LAN bind
-- [ ] pip-audit completed — attempted, but `pypi.org` access failed with `WinError 10013`; advisory result unavailable
-- [ ] Semgrep completed — attempted, but rule configuration load failed on this host; no valid findings report
-- [x] Codex Security Deep Scan completed — sealed canonical result has 13 findings reconciled in `SECURITY_REPORT.md`
-- [x] Repeat current-tree Standard Scan completed — scan `8bf38005-df71-4df8-8fd3-ff554bc45847` sealed with 3 documented findings
-- [x] OWASP ZAP checked where possible — unavailable locally; safe localhost baseline completed
-- [x] Login throttling checked — known and missing usernames now use the same account bucket and return the same limit response
-- [x] Login-attempt storage is bounded — blocked clients cannot allocate fresh username rows; hard row cap and expiry cleanup are covered by tests
-- [x] Account-wide login budget checked — rotating client addresses cannot bypass the normalized username limit
-- [x] Archived ledger mutation checked — Admin/Cashier delete/cancel paths require active funds
-- [x] Request-time authorization revalidation checked — write operations reload session/token/user state inside the transaction
-- [x] Expired/revoked session retention checked — 30-day cleanup is covered by regression tests
+- [x] Проверена аутентификация
+- [x] Проверена авторизация
+- [x] Проверено повышение роли
+- [x] Проверен IDOR
+- [x] Проверена SQL-инъекция
+- [x] Проверен XSS
+- [x] Проверен CSRF
+- [x] Проверен SSTI
+- [x] Проверен SSRF
+- [x] Проверен обход пути
+- [x] Проверены загрузки файлов — поверхности загрузки нет
+- [x] Проверены сессии
+- [x] Проверены cookie
+- [x] Проверены секреты
+- [x] Проверены зависимости
+- [x] Проверена конфигурация Flask
+- [x] Проверены HTTP-заголовки
+- [x] Bandit проверен — полный запуск дошёл до ошибки форматирования на тестовом Unicode-суррогате; production-проверка оставила только намеренную LAN-привязку `0.0.0.0`
+- [ ] pip-audit завершён — запуск выполнен, но доступ к `pypi.org` завершился `WinError 10013`; advisory-результат недоступен
+- [ ] Semgrep завершён — загрузка конфигурации правил не удалась на этом хосте; валидного отчёта нет
+- [x] Codex Security Deep Scan завершён — канонический запечатанный результат содержит 13 находок, сверенных с `SECURITY_REPORT.md`
+- [x] Повторный Standard Scan текущего дерева завершён — скан `8bf38005-df71-4df8-8fd3-ff554bc45847` запечатан с 3 описанными находками
+- [x] OWASP ZAP проверен, где возможно — локально недоступен; выполнена безопасная базовая проверка localhost
+- [x] Ограничение входа проверено — известные и неизвестные логины используют одну корзину и получают одинаковый ответ лимита
+- [x] Хранилище попыток входа ограничено — заблокированный клиент не создаёт новые строки; предел и очистка покрыты тестами
+- [x] Общий бюджет входа проверен — смена адресов клиента не обходит нормализованный лимит логина
+- [x] Изменение архивного журнала проверено — пути удаления/отмены Admin/Cashier требуют активный фонд
+- [x] Проверка авторизации во время запроса проверена — операции записи перечитывают сессию/токен/пользователя внутри транзакции
+- [x] Срок хранения истёкших/отозванных сессий проверен — очистка за 30 дней покрыта регрессионными тестами
 
-## Release gate
+## Ворота релиза
 
-- [x] No confirmed Critical vulnerabilities
-- [x] No confirmed High vulnerabilities after fixes
-- [x] Medium findings fixed or documented with deployment constraints
-- [x] False positives manually validated and recorded
-- [x] Existing business flows preserved by the full test suite
-- [x] Super Admin can view/revoke active sessions
-- [x] Browser sessions expire absolutely after 24 hours
-- [x] Logout revokes copied-cookie access
-- [x] API tokens expire and are revoked by password reset
-- [x] Full regression suite passes — 219 tests
-- [x] Codex Security Deep canonical report attached and reconciled
-- [x] Repeat current-tree Standard canonical report attached and reconciled
+- [x] Подтверждённых Critical-уязвимостей нет
+- [x] После исправлений подтверждённых High-уязвимостей нет
+- [x] Medium-находки исправлены или описаны ограничениями deployment
+- [x] Ложные срабатывания проверены вручную и зафиксированы
+- [x] Существующие бизнес-потоки сохранены полным набором тестов
+- [x] Super Admin видит и отзывает активные сессии
+- [x] Браузерные сессии завершаются ровно через 24 часа
+- [x] Logout отзывает доступ копии cookie
+- [x] API-токены истекают и отзываются при сбросе пароля
+- [x] Полный регрессионный набор проходит — 222 тест
+- [x] Канонический отчёт Codex Security Deep приложен и сверен
+- [x] Повторный Standard-отчёт текущего дерева приложен и сверен

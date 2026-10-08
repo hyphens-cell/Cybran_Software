@@ -1,4 +1,4 @@
-"""Explicit sample data for a separate local demonstration database."""
+"""Явные демонстрационные данные для отдельной локальной базы."""
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -12,7 +12,7 @@ from .db import atomic, get_db
 def seed_demo():
     db = get_db()
     if db.execute('SELECT count(*) FROM Users').fetchone()[0]:
-        raise click.ClickException('Demo seed requires an empty database; existing data has not been changed.')
+        raise click.ClickException('Демо-заполнение требует пустой базы; существующие данные не изменены.')
     passwords = {
         'superadmin': 'superadmin123',
         'admin': 'admin123',
@@ -50,4 +50,4 @@ def seed_demo():
     path = Path(current_app.instance_path)/'demo-access.txt'
     path.write_text('ДЕМО Cybran Software — только локальные тестовые данные. Простые пароли нельзя использовать в рабочей базе.\n\n'+
                     '\n'.join(f'{name}: {password}' for name,password in passwords.items())+'\n',encoding='utf-8')
-    click.echo(f'Demo created. Local credentials: {path}')
+    click.echo(f'Демо создано. Локальные реквизиты сохранены в: {path}')

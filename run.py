@@ -1,4 +1,4 @@
-"""Waitress entry point with a phone-friendly LAN URL and terminal QR code."""
+"""Точка запуска Waitress с LAN-адресом для телефона и QR-кодом в терминале."""
 import os
 
 from waitress import serve
@@ -10,7 +10,7 @@ app = create_app()
 if __name__ == '__main__':
     host = os.environ.get('HOST', '0.0.0.0')
     port = int(os.environ.get('PORT', '5000'))
-    # This compares the configured host; the intentional LAN bind is reported at its definition above.
+    # Сравниваем настроенный host; намеренная привязка к LAN указана выше.
     urls = mobile_urls(port) if host in ('0.0.0.0', '::') else [f'http://{host}:{port}']  # nosec B104
     print('\nCybran Software готов к подключению с телефона.')
     print(f'SQLite база: {app.config["DATABASE"]}')

@@ -1,4 +1,4 @@
-"""Shared financial and authorization rules for HTML and REST transports."""
+"""Общие финансовые и авторизационные правила для HTML и REST."""
 import csv
 import hashlib
 import io
@@ -25,11 +25,11 @@ class DomainError(Exception):
 
 
 def _fresh_authorized_user(user):
-    """Re-check the actor inside the write transaction.
+    """Повторно проверить исполнителя внутри транзакции записи.
 
-    Route authentication happens before dispatch, so a concurrent block,
-    role change, password reset, session revoke, or token revoke must be
-    revalidated immediately before a sensitive mutation.
+    Аутентификация маршрута проходит до вызова сервиса, поэтому параллельную
+    блокировку, смену роли, сброс пароля или отзыв сессии/токена нужно проверить
+    непосредственно перед чувствительным изменением.
     """
     if not isinstance(user, dict) or not user.get('id'):
         raise DomainError('Недостаточно прав для этого действия.', 403)
@@ -71,6 +71,7 @@ def write_operation(function):
 
 
 def require_role(user, *roles):
+    """Проверить активность пользователя и его роль до бизнес-операции."""
     if not user or not user['is_active'] or user['role'] not in roles:
         raise DomainError('Недостаточно прав для этого действия.', 403)
 
@@ -131,10 +132,10 @@ def password_hash(password):
 
 
 def record(table, record_id):
-    # Table identifiers are internal constants, never request values.
+    # Имена таблиц — внутренние константы, а не значения из запроса.
     if table not in ('Users', 'Funds', 'Transactions', 'ApiTokens'):
-        raise ValueError('Unknown table')
-    # The only interpolated identifier is checked against the fixed allowlist above.
+        raise ValueError('Неизвестная таблица')
+    # Единственный подставляемый идентификатор проверен по фиксированному списку выше.
     row = get_db().execute(f'SELECT * FROM {table} WHERE id=?', (identifier(record_id),)).fetchone()  # nosec B608
     if row is None:
         raise DomainError('Запись не найдена.', 404)
@@ -142,9 +143,12 @@ def record(table, record_id):
 
 
 def allowed_fund_ids(user, global_view=False):
+    """Вернуть только фонды, доступные роли и назначенным Rights пользователя."""
     require_role(user, *ROLES)
     db = get_db()
     if global_view:
+        # Глобальная сводка разрешена только Super Admin и Investor и включает
+        # исключительно фонды `for_stats`, даже если у Investor есть другие Rights.
         require_role(user, 'Super Admin', 'Investor')
         rows = db.execute("SELECT id FROM Funds WHERE type='for_stats'")
     elif user['role'] == 'Super Admin':
@@ -157,6 +161,7 @@ def allowed_fund_ids(user, global_view=False):
 
 
 def require_fund(user, fund_id, writing=False):
+    """Проверить Rights к фонду и отдельно запретить запись в архив."""
     fund_id = identifier(fund_id)
     if fund_id not in allowed_fund_ids(user):
         raise DomainError('Нет доступа к этому фонду.', 403)
@@ -167,6 +172,11 @@ def require_fund(user, fund_id, writing=False):
 
 
 def ledger(fund_id):
+    """Рассчитать текущий баланс фонда в целых минорных единицах.
+
+    Доход увеличивает баланс, расход уменьшает его, а перевод учитывается по
+    стороне пары: `debit` уменьшает источник, `credit` увеличивает получателя.
+    """
     rows = get_db().execute('''SELECT * FROM Transactions WHERE
       (type='income' AND to_fund_id=?) OR (type='expense' AND from_fund_id=?) OR
       (type='inter-transaction' AND ((transfer_side='debit' AND from_fund_id=?) OR
@@ -241,7 +251,7 @@ def list_transactions(user, filters=None, global_view=False):
             if row['transfer_id'] in seen:
                 continue
             seen.add(row['transfer_id'])
-        # The visible ledger must never disclose an inaccessible counterpart fund.
+        # Видимый журнал не должен раскрывать недоступную встречную сторону фонда.
         for prefix in ('from', 'to'):
             if row[f'{prefix}_fund_id'] not in ids:
                 if row[f'{prefix}_fund_id'] is not None:
@@ -293,9 +303,14 @@ def create_transaction(user, data):
 
 @write_operation
 def create_transfer(user, data):
+    """Атомарно создать две связанные записи межфондового перевода."""
     require_role(user, 'Super Admin', 'Admin')
     values = _transaction_data(user, data, True)
     transfer_id = secrets.token_hex(16)
+    # Перевод перемещает деньги между уже существующими фондами и поэтому
+    # не считается внешним доходом или расходом отчётности.
+    # Обе стороны межфондового перевода сохраняются одной atomic-транзакцией:
+    # ошибка списания или зачисления откатывает всю операцию.
     debit = _insert_transaction(values, user['id'], transfer_id, 'debit')
     credit = _insert_transaction(values, user['id'], transfer_id, 'credit')
     result = record('Transactions', debit)
@@ -307,8 +322,8 @@ def _require_modify(user, transaction):
     require_role(user, 'Super Admin', 'Admin')
     for field in ('from_fund_id', 'to_fund_id'):
         if transaction[field] is not None:
-            # Super Admin may correct archived history; lower roles may only
-            # mutate transactions while every affected fund is active.
+            # Super Admin может исправлять архивную историю; остальные роли
+            # меняют операции только пока все затронутые фонды активны.
             require_fund(user, transaction[field], writing=user['role'] != 'Super Admin')
     if user['role'] == 'Admin' and transaction['user_id'] != user['id']:
         author = record('Users', transaction['user_id'])
@@ -317,7 +332,7 @@ def _require_modify(user, transaction):
 
 
 def transaction_for_modify(user, transaction_id):
-    """Return an editable transaction without revealing inaccessible IDs."""
+    """Вернуть доступную для изменения операцию без раскрытия чужих ID."""
     transaction = record('Transactions', transaction_id)
     try:
         _require_modify(user, transaction)
@@ -348,7 +363,7 @@ def edit_transaction(user, transaction_id, data):
     values = _transaction_data(user, merged, is_transfer, user['role'] == 'Super Admin')
     columns = ('name','description','money','type','pay_type','datetime','from_fund_id','to_fund_id')
     selector = 'transfer_id' if is_transfer else 'id'
-    # Identifiers come from the fixed tuple/constants; every external value remains parameterized.
+    # Идентификаторы взяты из фиксированных констант; внешние значения остаются параметрами.
     get_db().execute(f"UPDATE Transactions SET {','.join(key+'=?' for key in columns)} WHERE {selector}=?",  # nosec B608
                      tuple(values[key] for key in columns)+(original['transfer_id'] if is_transfer else original['id'],))
     return record('Transactions', transaction_id)
@@ -410,7 +425,7 @@ def create_user(user, data):
 
 
 def _protect_superadmin_access(actor, target, *, role=None, is_active=None):
-    """Prevent administrative changes from removing every active Super Admin."""
+    """Не дать административному изменению удалить всех активных Super Admin."""
     next_role = target['role'] if role is None else role
     next_active = bool(target['is_active']) if is_active is None else is_active
     removes_active_superadmin = (
@@ -530,6 +545,11 @@ def list_tokens(user):
 
 @write_operation
 def create_token(user, user_id):
+    """Создать Bearer-токен и вернуть секрет ровно один раз.
+
+    В базе сохраняется только SHA-256; срок действия задаёт
+    `API_TOKEN_LIFETIME`, а отзыв владельца проверяется на каждом API-запросе.
+    """
     require_role(user, 'Super Admin')
     owner = record('Users', user_id)
     if not owner['is_active']:
@@ -591,9 +611,10 @@ def revoke_all_web_sessions(user, keep_session_id=None):
 
 
 def dashboard(user, filters=None):
+    """Собрать сводку только по доступным `for_stats` фондам за выбранный период."""
     require_role(user, 'Super Admin', 'Investor')
     filters = parse_filters(filters)
-    # Dashboard period changes flows only; balances remain the current ledger balance.
+    # Период дашборда меняет только потоки; баланс остаётся текущим балансом журнала.
     transactions = list_transactions(user, filters, True)
     funds = [fund_info(row) for row in get_db().execute("SELECT * FROM Funds WHERE type='for_stats' ORDER BY name,id")]
     for fund in funds:
@@ -625,6 +646,7 @@ def export_rows(user, filters=None):
 
 
 def export_file(user, filters, format):
+    """Сформировать CSV или XLSX отчёт с теми же фильтрами и ограничениями доступа."""
     enum_value(format,('csv','xlsx'),'Формат отчета')
     rows = export_rows(user, filters)
     columns = ('id','datetime','name','description','type','money','pay_type','from_fund_id','from_fund_name','to_fund_id','to_fund_name','fullname')
@@ -647,11 +669,11 @@ def export_file(user, filters, format):
     sheet.title = 'Операции for_stats'
     sheet.append(headers)
     for row in rows:
-        # Excel numbers preserve only 15 significant digits; write larger integers as text.
+        # Excel сохраняет только 15 значащих цифр; большие целые записываем текстом.
         sheet.append([str(row[key]) if isinstance(row[key],int) and abs(row[key]) >= 10**15 else row[key] for key in columns])
         for cell in sheet[sheet.max_row]:
             if isinstance(cell.value,str):
-                cell.data_type = 's'  # User text must never become a spreadsheet formula.
+                cell.data_type = 's'  # Пользовательский текст не должен стать формулой Excel.
     for cell in sheet[1]:
         cell.font = Font(color='FFFFFF',bold=True)
         cell.fill = PatternFill('solid',fgColor='B4232D')

@@ -1,4 +1,4 @@
-"""Real SQLite failures, paired transfers, balances, and access on both sides."""
+"""Реальные ошибки SQLite, пары переводов, балансы и доступ к обеим сторонам."""
 import pytest
 
 from app import services as svc

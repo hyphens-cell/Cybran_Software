@@ -1,4 +1,4 @@
-"""Super Admin management, token secrecy, and database constraints."""
+"""Управление Super Admin, секретность токенов и ограничения базы данных."""
 import hashlib
 import re
 import sqlite3
@@ -148,7 +148,7 @@ def test_token_generated_once_hash_only_and_revocation(app, client, login, html_
     response = html_post("/tokens", {"user_id": 2})
     assert response.status_code == 200
     match = re.search(r'id="generated-token"[^>]*>([0-9a-f]{128})</textarea>', response.get_data(as_text=True))
-    assert match, "The only token reveal must contain exactly 128 characters."
+    assert match, "Однократное раскрытие токена должно содержать ровно 128 символов."
     token = match.group(1)
     stored = rows("SELECT * FROM ApiTokens ORDER BY id DESC LIMIT 1")[0]
     assert stored["token"] == hashlib.sha256(token.encode()).hexdigest()

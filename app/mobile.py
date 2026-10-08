@@ -1,4 +1,4 @@
-"""Helpers for advertising the local Waitress server to phones on the LAN."""
+"""Вспомогательные функции для показа адреса локального Waitress телефонам в LAN."""
 from __future__ import annotations
 
 import ipaddress
@@ -22,9 +22,9 @@ def _usable_ipv4(addresses: Iterable[str]) -> list[str]:
 
 
 def discover_lan_ipv4() -> list[str]:
-    """Return likely phone-reachable private addresses, primary route first."""
+    """Вернуть вероятные частные адреса, доступные телефону, сначала основной маршрут."""
     candidates: list[str] = []
-    # A UDP connect selects a route but sends no traffic.
+    # UDP-соединение выбирает маршрут до локального адреса, но не отправляет данные.
     for destination in (("192.0.2.1", 80), ("8.8.8.8", 80)):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
@@ -47,12 +47,12 @@ def discover_lan_ipv4() -> list[str]:
 
 def mobile_urls(port: int) -> list[str]:
     if not 1 <= port <= 65535:
-        raise ValueError("PORT must be between 1 and 65535")
+        raise ValueError("PORT должен быть от 1 до 65535")
     return [f"http://{address}:{port}" for address in discover_lan_ipv4()]
 
 
 def render_terminal_qr(value: str) -> str:
-    """Render a compact high-contrast QR suitable for Windows terminals."""
+    """Нарисовать компактный контрастный QR-код для терминала Windows."""
     import qrcode
 
     qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M,

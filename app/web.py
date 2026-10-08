@@ -1,4 +1,4 @@
-"""Server-rendered, role-aware financial workspace."""
+"""Серверный финансовый интерфейс с учётом ролей."""
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
@@ -18,12 +18,13 @@ def filters():
 
 
 def minor_units(value):
-    """Convert a human-entered decimal to exact integer minor units."""
+    """Преобразовать десятичную сумму из формы в точные минорные единицы."""
     try:
         amount = Decimal(str(value).strip().replace(" ", "").replace(",", "."))
         if not amount.is_finite() or amount <= 0 or amount > Decimal("92233720368547758.07"):
             raise ValueError
-        # Inspect exact input digits BEFORE arithmetic can round to Decimal's context.
+        # Сначала проверяем исходные цифры, чтобы контекст Decimal не округлил их
+        # до проверки допустимой точности.
         parts = amount.as_tuple()
         subcent_digits = max(0, -parts.exponent - 2)
         if subcent_digits and any(parts.digits[-subcent_digits:]):

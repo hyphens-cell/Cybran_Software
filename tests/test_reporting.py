@@ -1,4 +1,4 @@
-"""Reconcile global reporting with external flows and actual fund balances."""
+"""Сверка общей отчётности с внешними потоками и реальными балансами фондов."""
 import csv
 from datetime import datetime, timezone
 from io import BytesIO, StringIO

@@ -1,4 +1,4 @@
-"""The exact API method/path and role contracts on PDF pages 8–9."""
+"""Точные методы, пути API и контракты ролей со страниц 8–9 ТЗ."""
 import pytest
 
 

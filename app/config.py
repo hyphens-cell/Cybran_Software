@@ -1,14 +1,18 @@
-"""Small project-local .env loader with shell variables taking precedence."""
+"""Небольшой загрузчик локального `.env` с приоритетом переменных процесса."""
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
 DEFAULT_PAYMENT_METHODS = ('Наличные', 'Kaspi', 'Карта')
+PROJECT_ENV_KEYS = frozenset({
+    'CYBRAN_DATABASE', 'PAYMENT_METHODS', 'HOST', 'PORT', 'MOBILE_IP',
+    'COOKIE_SECURE', 'SECRET_KEY', 'TRUSTED_PROXY_HOPS',
+})
 
 
 def parse_payment_methods(raw: object) -> tuple[str, ...]:
-    """Normalize the UI payment-method list while keeping a safe fallback."""
+    """Нормализовать способы оплаты для интерфейса и сохранить запасной список."""
     if isinstance(raw, str):
         values = raw.split(',')
     elif isinstance(raw, (list, tuple)):
@@ -27,11 +31,11 @@ def _value(raw: str) -> str:
 
 
 def load_project_env(path: str | Path | None = None) -> Path | None:
-    """Load simple KEY=VALUE settings from the project .env if present.
+    """Загрузить простые настройки KEY=VALUE из `.env`, если файл существует.
 
-    Existing process variables always win. Relative CYBRAN_DATABASE values from
-    the project file are resolved relative to the project root, so launching
-    ``run.py`` from another working directory still selects the same SQLite.
+    Переменные процесса всегда имеют приоритет. Относительный путь
+    `CYBRAN_DATABASE` вычисляется от корня проекта, поэтому запуск `run.py`
+    из другой папки всё равно выбирает ту же SQLite-базу.
     """
     env_path = Path(path) if path is not None else Path(__file__).resolve().parent.parent / '.env'
     if not env_path.is_file():
@@ -44,7 +48,7 @@ def load_project_env(path: str | Path | None = None) -> Path | None:
             line = line[7:].lstrip()
         key, separator, raw = line.partition('=')
         key = key.strip()
-        if not separator or not key or key in os.environ:
+        if not separator or not key or key not in PROJECT_ENV_KEYS or key in os.environ:
             continue
         value = _value(raw)
         if key == 'CYBRAN_DATABASE' and value and not Path(value).is_absolute():

@@ -1,4 +1,4 @@
-"""Failures reproduced by the independent final audit."""
+"""Сбои, воспроизведённые независимым финальным аудитом."""
 import pytest
 
 

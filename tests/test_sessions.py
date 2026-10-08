@@ -1,4 +1,4 @@
-"""Server-side browser session lifecycle and Super Admin controls."""
+"""Жизненный цикл серверных браузерных сессий и управление Super Admin."""
 from datetime import datetime
 
 from app.db import get_db

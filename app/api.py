@@ -1,4 +1,4 @@
-"""The endpoint names and allowed roles come directly from PDF pages 8–9."""
+"""Имена endpoint и разрешённые роли взяты непосредственно со страниц 8–9 ТЗ."""
 from functools import wraps
 
 from flask import Blueprint, g, jsonify, request

@@ -1,4 +1,4 @@
-# Финальная приемка — 2026-10-07
+# Финальная приёмка — 2026-10-08
 
 Приложение реализовано и проверено по всем 10 страницам «ТЗ для Бубелиса Йонаса.pdf» и пользовательской цели. Перед завершением исходный PDF открыт повторно; весь извлеченный текст совпал с первоначально прочитанным. SHA-256 исходника: `4795a1ad096dd4815d6adb5cdc8d7b6315dce07e2f08025b5e3ad698bf04ebf9`.
 
@@ -6,10 +6,10 @@
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q --basetemp=tmp/pytest_full_security_final2
-# 219 passed in 50.91s on the fresh PDF-ТЗ audit rerun after the latest limiter/proxy/archive/session fixes and project configuration changes
+# 222 теста пройдено за 96.18 с при свежем повторном аудите PDF-ТЗ после исправлений лимитов, proxy, архивов, сессий и конфигурации проекта
 .\.venv\Scripts\python.exe -m compileall -q app tests run.py
 .\.venv\Scripts\python.exe -m pip check
-# No broken requirements found.
+# Конфликты зависимостей не обнаружены.
 git diff --check
 ```
 
@@ -45,7 +45,7 @@ Frontend-агент дополнительно проверил рендер з�
 
 Отдельный read-only аудитор повторно проверил итоговый код, rollback, HTML и конкурентный сценарий с устаревшим объектом пользователя: **10 целевых тестов прошли, незакрытых замечаний нет**.
 
-После security-аудита добавлены серверный реестр сессий, завершение сессий Super Admin, 24-часовой абсолютный срок, bounded login throttling, dummy password path, 30-дневные API-токены, отзыв токенов при сбросе пароля, CSP, унификация 404 для чужих финансовых объектов, trusted-proxy client-IP, request-time authorization recheck, retention cleanup, запрет нижним ролям менять архивную историю, project `.env` и настраиваемые способы оплаты. Свежий полный suite при повторной сверке PDF-ТЗ: **219 passed in 50.91s**; auth/session focused suite: **68 passed**, management/integrity: **44 passed**, limiter-focused auth: **60 passed**, config: **3 passed**. `pip-audit` и Semgrep на этом хосте не получили валидный advisory/findings result из-за сетевых/config ограничений; Bandit оставляет только явно документированный LAN bind `0.0.0.0`. Полные доказательства и оставшийся риск HTTP/LAN описаны в `SECURITY_REPORT.md`.
+После security-аудита добавлены серверный реестр сессий, завершение сессий Super Admin, 24-часовой абсолютный срок, bounded login throttling, dummy password path, 30-дневные API-токены, отзыв токенов при сбросе пароля, CSP, унификация 404 для чужих финансовых объектов, trusted-proxy client-IP, request-time authorization recheck, retention cleanup, запрет нижним ролям менять архивную историю, project `.env` и настраиваемые способы оплаты. Свежий полный suite при повторной сверке PDF-ТЗ: **222 passed in 96.18s**; auth/session focused suite: **68 passed**, management/integrity: **44 passed**, limiter-focused auth: **60 passed**, config: **5 passed**. `pip-audit` и Semgrep на этом хосте не получили валидный advisory/findings result из-за сетевых/config ограничений; Bandit оставляет только явно документированный LAN bind `0.0.0.0`. Полные доказательства и оставшийся риск HTTP/LAN описаны в `SECURITY_REPORT.md`.
 
 ## Мобильное подключение
 

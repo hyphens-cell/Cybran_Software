@@ -36,9 +36,9 @@ def create_app(test_config=None):
     app.config['PAYMENT_METHODS'] = parse_payment_methods(app.config.get('PAYMENT_METHODS'))
     trusted_proxy_hops = max(0, int(app.config.get('TRUSTED_PROXY_HOPS', 0)))
     if trusted_proxy_hops:
-        # Trust forwarded client identity only when the deployment explicitly
-        # declares the exact number of controlled proxy hops. The proxy/backend
-        # network boundary must prevent direct client access to the backend.
+        # Доверяем forwarded-заголовкам только при явно заданном количестве
+        # контролируемых proxy-hop. Сетевой контур должен закрывать прямой
+        # доступ клиентов к backend в обход обратного прокси.
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=trusted_proxy_hops,
                                 x_proto=trusted_proxy_hops)
     app.config.setdefault('DEMO_MODE', Path(app.config['DATABASE']).name.casefold() == 'demo.sqlite3')
@@ -119,20 +119,22 @@ def create_app(test_config=None):
 
     @app.cli.command('init-db')
     def initialize():
+        """Идемпотентно создать таблицы SQLite, не очищая рабочие данные."""
         init_db()
-        click.echo('SQLite database initialized.')
+        click.echo('SQLite база инициализирована.')
 
     @app.cli.command('create-superadmin')
     @click.option('--username', prompt=True)
     @click.option('--fullname', default='Супер-администратор', show_default=True)
     @click.option('--password', prompt=True, hide_input=True, confirmation_prompt=True)
     def create_superadmin(username, fullname, password):
+        """Создать первого активного Super Admin с хешем пароля."""
         from .services import password_hash, text_value
         with atomic() as db:
             db.execute('INSERT INTO Users(username,fullname,password_hash,role) VALUES(?,?,?,?)',
                        (text_value(username, 'Логин', 50), text_value(fullname, 'Имя', 150),
                         password_hash(password), 'Super Admin'))
-        click.echo('Super Admin created.')
+        click.echo('Super Admin создан.')
 
     @app.cli.command('seed-demo')
     def demo():

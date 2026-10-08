@@ -1,4 +1,4 @@
-"""SQLite persistence. All monetary mutations use an explicit write transaction."""
+"""Хранилище SQLite; все денежные изменения выполняются в явной транзакции записи."""
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -89,12 +89,15 @@ def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(current_app.config['DATABASE'], isolation_level=None, timeout=15)
         g.db.row_factory = sqlite3.Row
+        # SQLite включает внешние ключи только для текущего соединения; без этого
+        # Rights, фонды, пользователи и связанные операции могли бы рассинхронизироваться.
         g.db.execute('PRAGMA foreign_keys=ON')
         g.db.execute('PRAGMA busy_timeout=15000')
     return g.db
 
 
 def init_db():
+    """Создать схему идемпотентно и добавить поля, появившиеся в старых БД."""
     Path(current_app.config['DATABASE']).parent.mkdir(parents=True, exist_ok=True)
     connection = get_db()
     connection.executescript(SCHEMA)
@@ -115,14 +118,19 @@ def close_db(_error=None):
 
 @contextmanager
 def atomic():
+    """Выполнить группу изменений одной транзакцией с откатом при ошибке."""
     connection = get_db()
     if connection.in_transaction:
         yield connection
         return
+    # BEGIN IMMEDIATE заранее резервирует запись: пара строк перевода и баланс
+    # не могут измениться конкурентным запросом между двумя INSERT.
     connection.execute('BEGIN IMMEDIATE')
     try:
         yield connection
+        # commit выполняется только после успешного завершения всей группы операций.
         connection.commit()
     except BaseException:
+        # rollback не оставляет половину перевода или незавершённое изменение прав.
         connection.rollback()
         raise

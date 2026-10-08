@@ -1,10 +1,8 @@
-"""HTML permissions are enforced for direct requests with valid CSRF tokens."""
+"""Права HTML проверяются для прямых запросов с корректными CSRF-токенами."""
 import pytest
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 import app.auth as auth_module
-from app import services as svc
-from app.db import get_db
 
 
 @pytest.mark.parametrize("username,destination", [("root", "/dashboard"), ("admin", "/funds"),
