@@ -59,6 +59,12 @@ def archive_fund(fund_id):
     return jsonify(svc.archive_fund(g.user,fund_id))
 
 
+@bp.patch('/funds/<int:fund_id>/restore')
+@roles()
+def restore_fund(fund_id):
+    return jsonify(svc.restore_fund(g.user,fund_id))
+
+
 @bp.post('/rights')
 @roles()
 def grant_right():

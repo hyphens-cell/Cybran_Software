@@ -2,12 +2,12 @@
 
 ## О проекте
 
-CRM учёта финансов по фондам. Система хранит операции в минорных единицах, применяет роли и Rights, показывает отчётность и предоставляет защищённый REST API. Требования сверяются с исходным PDF в [REQUIREMENTS_CHECKLIST.md](REQUIREMENTS_CHECKLIST.md), решения по противоречиям — в [docs/DECISIONS.md](docs/DECISIONS.md).
+CRM учёта финансов по фондам. Система хранит операции в минорных единицах, применяет роли и Rights, показывает отчётность и предоставляет защищённый REST API. Полная техническая документация, требования и аудиты собраны в [едином файле документации](docs/CYBRAN_SOFTWARE_FULL_DOCUMENTATION.md).
 
 ## Возможности
 
 - отдельные сценарии для Super Admin, Admin, Cashier и Investor;
-- фонды, архивирование, Rights, доходы, расходы и атомарные межфондовые переводы;
+- фонды, архивирование и восстановление, Rights, доходы, расходы и атомарные межфондовые переводы;
 - сводка `for_stats`, исключение `no_stats`, CSV/XLSX и мобильный запуск с QR;
 - браузерные сессии, API-токены, аудит действий и серверная проверка прав.
 
@@ -19,7 +19,7 @@ Python 3.12+, Flask, SQLite, Jinja2, Bootstrap, HTML/CSS, минимальный
 
 Нужны Python 3.12 или новее и PowerShell в Windows либо эквивалентный shell в другой ОС. Для разработки используется виртуальное окружение `.venv`.
 
-Для быстрой проверки без технических терминов используйте [docs/SIMPLE_MANUAL_CHECK.md](docs/SIMPLE_MANUAL_CHECK.md). Полная пошаговая приемка от чистой базы до проверки ролей, финансов, API, отчетов и мобильного QR находится в [docs/MANUAL_TEST_PLAN.md](docs/MANUAL_TEST_PLAN.md). Результаты аудита безопасности собраны в [SECURITY_REPORT.md](SECURITY_REPORT.md), а контрольный список — в [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md).
+Быстрая ручная проверка, полный сценарий приемки, требования и результаты аудитов находятся в едином файле документации.
 
 ## Быстрый запуск
 
@@ -29,7 +29,7 @@ Python 3.12+, Flask, SQLite, Jinja2, Bootstrap, HTML/CSS, минимальный
 
 Список быстрых способов оплаты на экранах кассира, операции и фильтров задаётся в `.env` через `PAYMENT_METHODS=Наличные,Kaspi,Карта`. После изменения перезапустите `run.py`. Поле API и ручной ввод операции по-прежнему принимают любой непустой способ оплаты до 50 символов, как разрешено ТЗ; параметр управляет именно подсказками и кнопками интерфейса.
 
-Подробное описание переменных находится в [docs/configuration.md](docs/configuration.md), а пошаговая установка — в [docs/installation.md](docs/installation.md).
+Подробное описание переменных и пошаговая установка находятся в едином файле документации.
 
 ## Инициализация базы данных
 
@@ -106,6 +106,7 @@ $env:CYBRAN_DATABASE = Join-Path (Get-Location) 'instance\demo.sqlite3'
 | PATCH | `/api/users/{id}/block` | Super Admin |
 | POST | `/api/create_fund` | Super Admin |
 | PATCH | `/api/funds/{id}/archive` | Super Admin |
+| PATCH | `/api/funds/{id}/restore` | Super Admin |
 | POST | `/api/rights` | Super Admin |
 | DELETE | `/api/rights/{user_id}/{fund_id}` | Super Admin |
 | DELETE | `/api/tokens/{id}` | Super Admin |
@@ -127,6 +128,8 @@ Cashier/Investor не перечислены в API-таблицах PDF и по
 
 Для перевода: `from_fund_id`, `to_fund_id`, `money`, необязательные `name`, `description`, `pay_type`, `datetime` ISO 8601. Для редактирования можно передать только изменяемые поля. Для смены фонда обычной операции используется `fund_id`.
 
+Архив фонда не удаляет историю: Super Admin может восстановить его через `PATCH /api/funds/{id}/restore` или кнопку «Восстановить фонд». В веб-форме архивации требуется точное название фонда и подтверждение; повторная архивация возвращает `409`.
+
 Создание пользователя: `username`, `fullname`, `role` (точно `Super Admin`, `Admin`, `Cashier`, `Investor`), `password` (8–256 символов). Изменение пользователя принимает эти же поля; пароль необязателен. Блокировка: `{"is_active":false}`, разблокировка: `true`. Создание фонда: `name`, `description`, `type` (`for_stats`/`no_stats`). Rights: `user_id`, `fund_id`.
 
 GET истории поддерживает `date_from`, `date_to` (`YYYY-MM-DD`), `type`, `pay_type`, `fund_id`. Список возвращает JSON array; создание/изменение — объект. Ответы: 201 создание, 200 чтение/изменение, 204 удаление/отзыв, 400 валидация, 401 неверный токен, 403 роль/Rights, 404 отсутствующая запись, 409 конфликт/архив, 415 неверный Content-Type. Ошибки: `{"error":"описание"}`. Все денежные значения JSON — integer, строки/bool/float не принимаются.
@@ -147,17 +150,11 @@ New-Item -ItemType Directory -Force tmp
 
 ## Документация
 
-- [Единый сборник документации](docs/CYBRAN_SOFTWARE_FULL_DOCUMENTATION.md);
-- [Установка](docs/installation.md), [конфигурация](docs/configuration.md), [архитектура](docs/architecture.md) и [база данных](docs/database.md);
-- [роли и права](docs/roles-and-permissions.md), [финансовая логика](docs/financial-logic.md) и [REST API](docs/api.md);
-- [тестирование](docs/testing.md), [операции](docs/operations.md), [резервное копирование](docs/backup-and-restore.md) и [устранение неполадок](docs/troubleshooting.md);
-- [очистка репозитория](docs/repository-cleanup.md), [аудит безопасности](docs/security-audit.md) и [контрольный аудит релиза](docs/release-audit.md).
-
-Простая ручная проверка описана в [docs/SIMPLE_MANUAL_CHECK.md](docs/SIMPLE_MANUAL_CHECK.md), полный сценарий — в [docs/MANUAL_TEST_PLAN.md](docs/MANUAL_TEST_PLAN.md).
+- [Единый файл документации](docs/CYBRAN_SOFTWARE_FULL_DOCUMENTATION.md) — установка, конфигурация, архитектура, база данных, роли, API, тестирование, эксплуатация, резервные копии, ручная приемка и аудиты.
 
 ## Deployment
 
-Для production используйте [docs/deployment.md](docs/deployment.md): HTTPS reverse proxy, отдельный `SECRET_KEY`, `COOKIE_SECURE=1`, ограниченный доступ к backend и резервное копирование по [docs/backup-and-restore.md](docs/backup-and-restore.md).
+Для production используйте разделы Deployment и резервного копирования в [едином файле документации](docs/CYBRAN_SOFTWARE_FULL_DOCUMENTATION.md).
 
 ## Проверка и устройство
 

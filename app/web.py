@@ -138,9 +138,23 @@ def fund_form(fund_id=None):
 @bp.post("/funds/<int:fund_id>/archive")
 @roles_required("Super Admin")
 def fund_archive(fund_id):
+    fund = svc.fund_detail(g.user, fund_id)
+    # Архивирование из UI требует точного названия фонда: одного случайного
+    # клика по красной кнопке недостаточно.
+    if request.form.get("confirm_fund_name", "").strip() != fund["name"]:
+        flash("Для архивации введите точное название фонда.", "danger")
+        return redirect(url_for("web.fund_form", fund_id=fund_id))
     svc.archive_fund(g.user, fund_id)
     flash("Фонд архивирован. История операций сохранена.", "success")
     return redirect(url_for("web.funds"))
+
+
+@bp.post("/funds/<int:fund_id>/restore")
+@roles_required("Super Admin")
+def fund_restore(fund_id):
+    svc.restore_fund(g.user, fund_id)
+    flash("Фонд восстановлен. Новые операции снова разрешены.", "success")
+    return redirect(url_for("web.fund_form", fund_id=fund_id))
 
 
 @bp.route("/transactions")

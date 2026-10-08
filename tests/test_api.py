@@ -5,7 +5,8 @@ import pytest
 SUPER_ENDPOINTS = [
     ("POST", "/api/create_user"), ("PUT", "/api/users/4/edit_user"),
     ("PATCH", "/api/users/4/block"), ("POST", "/api/create_fund"),
-    ("PATCH", "/api/funds/1/archive"), ("POST", "/api/rights"),
+    ("PATCH", "/api/funds/1/archive"), ("PATCH", "/api/funds/1/restore"),
+    ("POST", "/api/rights"),
     ("DELETE", "/api/rights/4/1"), ("DELETE", "/api/tokens/4"),
     ("PUT", "/api/transactions/1"), ("DELETE", "/api/transactions/1"),
 ]

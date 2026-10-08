@@ -500,9 +500,21 @@ def edit_fund(user, fund_id, data):
 
 @write_operation
 def archive_fund(user, fund_id):
+    """Архивировать фонд без удаления истории и запретить повторную архивацию."""
+    require_role(user, 'Super Admin')
+    fund = record('Funds', fund_id)
+    if not fund['is_active']:
+        raise DomainError('Фонд уже находится в архиве.', 409)
+    get_db().execute('UPDATE Funds SET is_active=0 WHERE id=?', (fund_id,))
+    return fund_info(record('Funds', fund_id))
+
+
+@write_operation
+def restore_fund(user, fund_id):
+    """Вернуть архивный фонд в активное состояние без изменения истории."""
     require_role(user, 'Super Admin')
     record('Funds', fund_id)
-    get_db().execute('UPDATE Funds SET is_active=0 WHERE id=?', (fund_id,))
+    get_db().execute('UPDATE Funds SET is_active=1 WHERE id=?', (fund_id,))
     return fund_info(record('Funds', fund_id))
 
 

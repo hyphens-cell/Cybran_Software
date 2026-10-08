@@ -116,7 +116,25 @@ def test_create_edit_archive_fund_and_metadata(api, client, login, html_post, ro
     assert stored == {"name": "Исправленный", "description": "Развитие", "type": "for_stats"}
     assert api("PATCH", f"/api/funds/{fund_id}/archive", "root").status_code == 200
     assert rows("SELECT is_active FROM Funds WHERE id=?", (fund_id,)) == [{"is_active": 0}]
+    assert api("PATCH", f"/api/funds/{fund_id}/archive", "root").status_code == 409
+    restored = api("PATCH", f"/api/funds/{fund_id}/restore", "root")
+    assert restored.status_code == 200
+    assert restored.json["is_active"] == 1
+    assert rows("SELECT is_active FROM Funds WHERE id=?", (fund_id,)) == [{"is_active": 1}]
+    assert api("POST", "/api/transactions/add", "root", {"fund_id": fund_id, "money": 100, "type": "income", "pay_type": "Kaspi"}).status_code == 201
     assert api("POST", "/api/create_fund", "root", {"name": "Bad", "type": "custom"}).status_code == 400
+
+
+def test_html_archive_requires_exact_fund_name_and_restore_is_available(client, login, html_post, rows):
+    assert login("root").status_code == 302
+    assert html_post("/funds/1/archive", {"confirm_fund_name": "не тот фонд"}).status_code == 302
+    assert rows("SELECT is_active FROM Funds WHERE id=1") == [{"is_active": 1}]
+    assert html_post("/funds/1/archive", {"confirm_fund_name": "Main fund"}).status_code == 302
+    assert rows("SELECT is_active FROM Funds WHERE id=1") == [{"is_active": 0}]
+    page = client.get("/funds/1/edit")
+    assert page.status_code == 200 and "Восстановить фонд" in page.get_data(as_text=True)
+    assert html_post("/funds/1/restore").status_code == 302
+    assert rows("SELECT is_active FROM Funds WHERE id=1") == [{"is_active": 1}]
 
 
 def test_grant_revoke_right_changes_existing_token_immediately(api):

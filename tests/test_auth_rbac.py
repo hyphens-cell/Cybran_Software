@@ -131,7 +131,7 @@ def test_global_dashboard_and_exports_role_enforcement(client, login, username):
 
 
 @pytest.mark.parametrize("path", ["/transactions/new", "/transfers/new", "/funds/new",
-    "/funds/1/archive", "/transactions/1/edit", "/transactions/1/delete", "/transactions/1/cancel",
+    "/funds/1/archive", "/funds/1/restore", "/transactions/1/edit", "/transactions/1/delete", "/transactions/1/cancel",
     "/users/4/block", "/rights", "/tokens"])
 def test_investor_read_only_even_for_forged_post(client, login, html_post, path):
     assert login("investor").status_code == 302

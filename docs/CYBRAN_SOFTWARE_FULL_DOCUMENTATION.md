@@ -37,7 +37,7 @@
 <a id="readmemd"></a>
 ## Раздел 1: `README.md`
 
-Исходный файл: [`README.md`](../README.md)
+Раздел сборника: [`README.md`](../README.md)
 
 # Cybran Software CRM
 
@@ -147,6 +147,7 @@ $env:CYBRAN_DATABASE = Join-Path (Get-Location) 'instance\demo.sqlite3'
 | PATCH | `/api/users/{id}/block` | Super Admin |
 | POST | `/api/create_fund` | Super Admin |
 | PATCH | `/api/funds/{id}/archive` | Super Admin |
+| PATCH | `/api/funds/{id}/restore` | Super Admin |
 | POST | `/api/rights` | Super Admin |
 | DELETE | `/api/rights/{user_id}/{fund_id}` | Super Admin |
 | DELETE | `/api/tokens/{id}` | Super Admin |
@@ -211,7 +212,7 @@ New-Item -ItemType Directory -Force tmp
 <a id="requirements-checklistmd"></a>
 ## Раздел 2: `REQUIREMENTS_CHECKLIST.md`
 
-Исходный файл: [`REQUIREMENTS_CHECKLIST.md`](../REQUIREMENTS_CHECKLIST.md)
+Раздел сборника: [`REQUIREMENTS_CHECKLIST.md`](#requirements-checklistmd)
 
 # Cybran Software — соответствие техническому заданию
 
@@ -253,7 +254,7 @@ New-Item -ItemType Directory -Force tmp
 | SA-01 | PDF 4–5 | [x] Список пользователей с поиском и фильтром по роли. | [x] `app/web.py:users; app/services.py:list_users; app/templates/users.html`. | [x] `test_management.py:test_user_edit_search_filter_password_reset_and_invalidation`. Критерий: Поиск и фильтр возвращают ожидаемых пользователей. |
 | SA-02 | PDF 2, 4–5, 8 | [x] Создание пользователя любой из четырех ролей, редактирование данных и смена роли. | [x] `app/services.py:create_user,edit_user; app/api.py:create_user,edit_user; app/web.py:user_form`. | [x] `test_management.py:test_create_users_all_roles_and_no_password_leak; test_auth_rbac.py:test_session_and_api_permissions_refresh_after_role_change`. Критерий: Созданы все роли; изменения сохранены; следующий запрос применяет новую роль. |
 | SA-03 | PDF 5, 8 | [x] Блокировка/разблокировка пользователя и сброс пароля. | [x] `app/services.py:block_user,reset_password; app/web.py:user_block,user_password`. | [x] `test_auth_rbac.py:test_blocked_user_invalidates_login_session_and_api; test_management.py:test_user_edit_search_filter_password_reset_and_invalidation; test_edit_user_rejects_explicit_invalid_password`. Критерий: Старый пароль после сброса неверен, новый работает; active-состояние учитывается во всех способах входа; явно переданный некорректный пароль отклоняется без ложного успеха. |
-| SA-04 | PDF 2, 5, 8 | [x] Создание, редактирование и архивирование фондов без потери истории. | [x] `app/services.py:create_fund,edit_fund,archive_fund; app/web.py:fund_form,fund_archive`. | [x] `test_management.py:test_create_edit_archive_fund_and_metadata; test_integrity.py:test_archiving_preserves_history_balances_and_global_stats`. Критерий: Название/описание/type изменяются; архив не удаляет транзакции и их влияние на баланс. |
+| SA-04 | PDF 2, 5, 8 | [x] Создание, редактирование, архивирование и восстановление фондов без потери истории. | [x] `app/services.py:create_fund,edit_fund,archive_fund,restore_fund; app/web.py:fund_form,fund_archive,fund_restore; app/api.py:archive_fund,restore_fund`. | [x] `test_management.py:test_create_edit_archive_fund_and_metadata,test_html_archive_requires_exact_fund_name_and_restore_is_available; test_integrity.py:test_archiving_preserves_history_balances_and_global_stats`. Критерий: Архив не удаляет операции, повторная архивация отклоняется с 409, Super Admin может восстановить фонд и снова записывать операции. |
 | SA-05 | PDF 2, 5, 8–9 | [x] Матрица User ↔ Fund: назначение и отзыв прав, в том числе массовая выдача кассиру нескольких фондов. | [x] `app/services.py:set_rights,grant_right,revoke_right; app/web.py:rights`. | [x] `test_management.py:test_mass_rights_form_and_invalid_replacement_are_atomic; test_grant_revoke_right_changes_existing_token_immediately`. Критерий: Выдача нескольких связей одной формой; отзыв доступа отражается в следующем запросе пользователя. |
 | SA-06 | PDF 2, 5 | [x] Для каждого фонда переключается for_stats/no_stats. | [x] `app/services.py:edit_fund; app/web.py:fund_form`. | [x] `test_reporting.py:test_fund_reporting_switch_immediately_changes_dashboard_and_export`. Критерий: Переключение немедленно меняет Global Dashboard и отчеты без удаления данных. |
 | SA-07 | PDF 2, 5, 9 | [x] Глобальный аудит: все транзакции всех фондов, изменение любой записи, удаление ошибочной с пересчетом балансов. | [x] `app/services.py:list_transactions,edit_transaction,delete_transaction; app/web.py:transactions`. | [x] `test_api.py:test_global_edit_delete_all_authors; test_integrity.py:test_super_admin_corrects_archived_history_without_enabling_new_entries`. Критерий: Super Admin видит no_stats и чужие записи, исправляет их; баланс и отчетность сразу соответствуют данным. |
@@ -374,7 +375,7 @@ New-Item -ItemType Directory -Force tmp
 <a id="security-checklistmd"></a>
 ## Раздел 3: `SECURITY_CHECKLIST.md`
 
-Исходный файл: [`SECURITY_CHECKLIST.md`](../SECURITY_CHECKLIST.md)
+Раздел сборника: [`SECURITY_CHECKLIST.md`](#security-checklistmd)
 
 # Контрольный список безопасности
 
@@ -428,7 +429,7 @@ New-Item -ItemType Directory -Force tmp
 <a id="security-reportmd"></a>
 ## Раздел 4: `SECURITY_REPORT.md`
 
-Исходный файл: [`SECURITY_REPORT.md`](../SECURITY_REPORT.md)
+Раздел сборника: [`SECURITY_REPORT.md`](#security-reportmd)
 
 # Отчёт аудита безопасности
 
@@ -832,7 +833,7 @@ This report contains no complete password, API token, cookie, session identifier
 <a id="docs-apimd"></a>
 ## Раздел 5: `docs/api.md`
 
-Исходный файл: [`docs/api.md`](../docs/api.md)
+Раздел сборника: [`docs/api.md`](#docs-apimd)
 
 # REST API
 
@@ -896,7 +897,7 @@ Invoke-RestMethod -Uri "$base/api/funds" -Headers $headers -Method Get
 <a id="docs-architecturemd"></a>
 ## Раздел 6: `docs/architecture.md`
 
-Исходный файл: [`docs/architecture.md`](../docs/architecture.md)
+Раздел сборника: [`docs/architecture.md`](#docs-architecturemd)
 
 # Архитектура
 
@@ -931,7 +932,7 @@ Cybran Software — серверное приложение на Python, Flask, 
 <a id="docs-backup-and-restoremd"></a>
 ## Раздел 7: `docs/backup-and-restore.md`
 
-Исходный файл: [`docs/backup-and-restore.md`](../docs/backup-and-restore.md)
+Раздел сборника: [`docs/backup-and-restore.md`](#docs-backup-and-restoremd)
 
 # Резервное копирование и восстановление
 
@@ -969,7 +970,7 @@ $backupPath = 'backups\cybran-YYYYMMDD-HHmmss.sqlite3'
 <a id="docs-configurationmd"></a>
 ## Раздел 8: `docs/configuration.md`
 
-Исходный файл: [`docs/configuration.md`](../docs/configuration.md)
+Раздел сборника: [`docs/configuration.md`](#docs-configurationmd)
 
 # Конфигурация
 
@@ -997,7 +998,7 @@ $backupPath = 'backups\cybran-YYYYMMDD-HHmmss.sqlite3'
 <a id="docs-databasemd"></a>
 ## Раздел 9: `docs/database.md`
 
-Исходный файл: [`docs/database.md`](../docs/database.md)
+Раздел сборника: [`docs/database.md`](#docs-databasemd)
 
 # База данных
 
@@ -1028,7 +1029,7 @@ Foreign keys включены для каждого соединения. Огр
 <a id="docs-decisionsmd"></a>
 ## Раздел 10: `docs/DECISIONS.md`
 
-Исходный файл: [`docs/DECISIONS.md`](../docs/DECISIONS.md)
+Раздел сборника: [`docs/DECISIONS.md`](#docs-decisionsmd)
 
 # Решения по неоднозначностям ТЗ
 
@@ -1082,7 +1083,7 @@ Foreign keys включены для каждого соединения. Огр
 
 **Решение:** в базе используются `Users.is_active`, `Funds.is_active`, а для ApiTokens — поле `active` из схемы PDF 3. Все операции отзыва читают/пишут один и тот же флаг; отдельные независимые `active` и `is_active` для токена не создаются. API и документация явно называют используемый формат.
 
-Архивирование — изменение флага, без физического удаления фонда или операций. Новые записи в архивный фонд не создаются; история и рассчитанные финансовые остатки сохраняются. Тип for_stats/no_stats продолжает определять участие архивного фонда в сводной исторической отчетности: архив не является командой стереть его деньги из KPI. Возможность глобальной коррекции прошлых записей Super Admin сохраняется. Отдельный жизненный цикл удаления/восстановления фондов ТЗ не задает.
+Архивирование — изменение флага, без физического удаления фонда или операций. Новые записи в архивный фонд не создаются; история и рассчитанные финансовые остатки сохраняются. Тип for_stats/no_stats продолжает определять участие архивного фонда в сводной исторической отчетности: архив не является командой стереть его деньги из KPI. Возможность глобальной коррекции прошлых записей Super Admin сохраняется. В реализации Super Admin может восстановить архивный фонд через `POST /funds/{fund_id}/restore` или `PATCH /api/funds/{id}/restore`; восстановление возвращает `is_active=1` и не меняет историю. Повторная архивация уже архивного фонда отклоняется с HTTP 409. В веб-интерфейсе архивация требует точного повторного ввода названия фонда и второго подтверждения, чтобы случайный клик не изменил статус.
 
 ## D07. Точные денежные значения и минимальная валидация
 
@@ -1131,7 +1132,7 @@ Super Admin видит только служебные метаданные: п�
 <a id="docs-deploymentmd"></a>
 ## Раздел 11: `docs/deployment.md`
 
-Исходный файл: [`docs/deployment.md`](../docs/deployment.md)
+Раздел сборника: [`docs/deployment.md`](#docs-deploymentmd)
 
 # Развёртывание
 
@@ -1173,7 +1174,7 @@ Super Admin видит только служебные метаданные: п�
 <a id="docs-financial-logicmd"></a>
 ## Раздел 12: `docs/financial-logic.md`
 
-Исходный файл: [`docs/financial-logic.md`](../docs/financial-logic.md)
+Раздел сборника: [`docs/financial-logic.md`](#docs-financial-logicmd)
 
 # Финансовая логика
 
@@ -1201,7 +1202,7 @@ Admin должен иметь Rights на оба активных фонда; Su
 <a id="docs-installationmd"></a>
 ## Раздел 13: `docs/installation.md`
 
-Исходный файл: [`docs/installation.md`](../docs/installation.md)
+Раздел сборника: [`docs/installation.md`](#docs-installationmd)
 
 # Установка и первый запуск
 
@@ -1267,7 +1268,7 @@ $env:CYBRAN_DATABASE = Join-Path (Get-Location) 'tmp\clean-install.sqlite3'
 <a id="docs-manual-test-planmd"></a>
 ## Раздел 14: `docs/MANUAL_TEST_PLAN.md`
 
-Исходный файл: [`docs/MANUAL_TEST_PLAN.md`](../docs/MANUAL_TEST_PLAN.md)
+Раздел сборника: [`docs/MANUAL_TEST_PLAN.md`](#docs-manual-test-planmd)
 
 # Cybran Software — полный сценарий ручной приемки
 
@@ -2140,9 +2141,10 @@ $apiFund = Invoke-RestMethod -Method Post -Uri "$base/api/create_fund" `
 Invoke-CybranApi POST "/api/rights" $rootToken @{ user_id=$apiUser.id; fund_id=$apiFund.id }
 Invoke-CybranApi DELETE "/api/rights/$($apiUser.id)/$($apiFund.id)" $rootToken
 Invoke-CybranApi PATCH "/api/funds/$($apiFund.id)/archive" $rootToken @{}
+Invoke-CybranApi PATCH "/api/funds/$($apiFund.id)/restore" $rootToken @{}
 ```
 
-Ожидается: право появляется и отзывается; фонд остается в архиве без удаления.
+Ожидается: право появляется и отзывается; архив сохраняет историю; восстановление возвращает фонд в активное состояние без удаления операций.
 
 ### M-47. Глобальное PUT/DELETE транзакции
 
@@ -2269,7 +2271,7 @@ HTTP-код (если известен):
 <a id="docs-operationsmd"></a>
 ## Раздел 15: `docs/operations.md`
 
-Исходный файл: [`docs/operations.md`](../docs/operations.md)
+Раздел сборника: [`docs/operations.md`](#docs-operationsmd)
 
 # Ежедневные операции
 
@@ -2298,7 +2300,7 @@ Super Admin создаёт пользователей, назначает Rights
 <a id="docs-release-auditmd"></a>
 ## Раздел 16: `docs/release-audit.md`
 
-Исходный файл: [`docs/release-audit.md`](../docs/release-audit.md)
+Раздел сборника: [`docs/release-audit.md`](#docs-release-auditmd)
 
 # Финальный независимый аудит релиза
 
@@ -2332,7 +2334,7 @@ Super Admin создаёт пользователей, назначает Rights
 <a id="docs-repository-cleanupmd"></a>
 ## Раздел 17: `docs/repository-cleanup.md`
 
-Исходный файл: [`docs/repository-cleanup.md`](../docs/repository-cleanup.md)
+Раздел сборника: [`docs/repository-cleanup.md`](#docs-repository-cleanupmd)
 
 # Отчёт об очистке репозитория
 
@@ -2340,11 +2342,11 @@ Super Admin создаёт пользователей, назначает Rights
 
 ## Удаляемые артефакты
 
-После финального прогона удаляются только сгенерированные `tmp/`, `.pytest_cache/`, `__pycache__/` и старые локальные логи. В Git эти пути уже игнорируются. Рабочие `instance/*.sqlite3`, `instance/session.key` и `instance/demo-access.txt` сохраняются локально и не отслеживаются.
+После финального прогона удаляются только сгенерированные `tmp/`, `.pytest_cache/`, `__pycache__/`, старые локальные логи и дублирующие Markdown-файлы. В Git эти пути уже игнорируются. Рабочие `instance/*.sqlite3`, `instance/session.key` и `instance/demo-access.txt` сохраняются локально и не отслеживаются.
 
 ## Что оставлено намеренно
 
-- `docs/MANUAL_TEST_PLAN.md`, `docs/SIMPLE_MANUAL_CHECK.md` и отчёты предыдущих приёмок нужны для ручной проверки.
+- Все материалы из папки `docs/` объединены в этот единый файл; отдельные копии удалены, чтобы не было расхождений между версиями документации.
 - `requirements-audit.txt` содержит инструменты аудита и не смешивается с runtime-зависимостями.
 - `app/static/vendor/bootstrap.min.css` — используемая локальная библиотека; её лицензионный комментарий не переводится.
 - SQL-строки, endpoint, роли, имена полей и идентификаторы сохранены без перевода.
@@ -2358,7 +2360,7 @@ Super Admin создаёт пользователей, назначает Rights
 <a id="docs-roles-and-permissionsmd"></a>
 ## Раздел 18: `docs/roles-and-permissions.md`
 
-Исходный файл: [`docs/roles-and-permissions.md`](../docs/roles-and-permissions.md)
+Раздел сборника: [`docs/roles-and-permissions.md`](#docs-roles-and-permissionsmd)
 
 # Роли и права
 
@@ -2386,7 +2388,7 @@ Cookie-сессия предназначена для HTML. REST использ�
 <a id="docs-security-auditmd"></a>
 ## Раздел 19: `docs/security-audit.md`
 
-Исходный файл: [`docs/security-audit.md`](../docs/security-audit.md)
+Раздел сборника: [`docs/security-audit.md`](#docs-security-auditmd)
 
 # Аудит безопасности
 
@@ -2413,7 +2415,7 @@ HTTP на доверенной LAN-сети не шифрует трафик; д
 <a id="docs-simple-manual-checkmd"></a>
 ## Раздел 20: `docs/SIMPLE_MANUAL_CHECK.md`
 
-Исходный файл: [`docs/SIMPLE_MANUAL_CHECK.md`](../docs/SIMPLE_MANUAL_CHECK.md)
+Раздел сборника: [`docs/SIMPLE_MANUAL_CHECK.md`](#docs-simple-manual-checkmd)
 
 # Простая ручная проверка Cybran Software
 
@@ -2586,7 +2588,7 @@ HTTP на доверенной LAN-сети не шифрует трафик; д
 <a id="docs-testingmd"></a>
 ## Раздел 21: `docs/testing.md`
 
-Исходный файл: [`docs/testing.md`](../docs/testing.md)
+Раздел сборника: [`docs/testing.md`](#docs-testingmd)
 
 # Проверка
 
@@ -2620,7 +2622,7 @@ New-Item -ItemType Directory -Force tmp
 <a id="docs-troubleshootingmd"></a>
 ## Раздел 22: `docs/troubleshooting.md`
 
-Исходный файл: [`docs/troubleshooting.md`](../docs/troubleshooting.md)
+Раздел сборника: [`docs/troubleshooting.md`](#docs-troubleshootingmd)
 
 # Устранение проблем
 
@@ -2649,7 +2651,7 @@ New-Item -ItemType Directory -Force tmp
 <a id="docs-verificationmd"></a>
 ## Раздел 23: `docs/VERIFICATION.md`
 
-Исходный файл: [`docs/VERIFICATION.md`](../docs/VERIFICATION.md)
+Раздел сборника: [`docs/VERIFICATION.md`](#docs-verificationmd)
 
 # Финальная приёмка — 2026-10-08
 
@@ -2698,7 +2700,7 @@ Frontend-агент дополнительно проверил рендер з�
 
 Отдельный read-only аудитор повторно проверил итоговый код, rollback, HTML и конкурентный сценарий с устаревшим объектом пользователя: **10 целевых тестов прошли, незакрытых замечаний нет**.
 
-После security-аудита добавлены серверный реестр сессий, завершение сессий Super Admin, 24-часовой абсолютный срок, bounded login throttling, dummy password path, 30-дневные API-токены, отзыв токенов при сбросе пароля, CSP, унификация 404 для чужих финансовых объектов, trusted-proxy client-IP, request-time authorization recheck, retention cleanup, запрет нижним ролям менять архивную историю, project `.env` и настраиваемые способы оплаты. Свежий полный suite при повторной сверке PDF-ТЗ: **222 passed in 96.18s**; auth/session focused suite: **68 passed**, management/integrity: **44 passed**, limiter-focused auth: **60 passed**, config: **5 passed**. `pip-audit` и Semgrep на этом хосте не получили валидный advisory/findings result из-за сетевых/config ограничений; Bandit оставляет только явно документированный LAN bind `0.0.0.0`. Полные доказательства и оставшийся риск HTTP/LAN описаны в `SECURITY_REPORT.md`.
+После security-аудита добавлены серверный реестр сессий, завершение сессий Super Admin, 24-часовой абсолютный срок, bounded login throttling, dummy password path, 30-дневные API-токены, отзыв токенов при сбросе пароля, CSP, унификация 404 для чужих финансовых объектов, trusted-proxy client-IP, request-time authorization recheck, retention cleanup, запрет нижним ролям менять архивную историю, project `.env` и настраиваемые способы оплаты. Свежий полный suite при повторной сверке PDF-ТЗ: **227 passed**; auth/session focused suite: **68 passed**, management/integrity: **44 passed**, limiter-focused auth: **60 passed**, config: **5 passed**. `pip-audit` и Semgrep на этом хосте не получили валидный advisory/findings result из-за сетевых/config ограничений; Bandit оставляет только явно документированный LAN bind `0.0.0.0`. Полные доказательства и оставшийся риск HTTP/LAN описаны в `SECURITY_REPORT.md`.
 
 ## Мобильное подключение
 
